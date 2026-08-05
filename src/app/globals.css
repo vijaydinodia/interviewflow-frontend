@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-jakarta), system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
+}
+
+/* ── Auth page 3D flip animations ─────────────────────────── */
+@keyframes authFlipOut {
+  0%   { transform: perspective(1200px) rotateY(0deg) scale(1); opacity: 1; }
+  100% { transform: perspective(1200px) rotateY(88deg) scale(0.96); opacity: 0; }
+}
+@keyframes authFlipIn {
+  0%   { transform: perspective(1200px) rotateY(-88deg) scale(0.96); opacity: 0; }
+  100% { transform: perspective(1200px) rotateY(0deg) scale(1); opacity: 1; }
+}
+.auth-flip-out {
+  animation: authFlipOut 0.22s cubic-bezier(0.4, 0, 1, 1) forwards;
+  transform-origin: center center;
+  pointer-events: none;
+}
+.auth-flip-in {
+  animation: authFlipIn 0.34s cubic-bezier(0, 0, 0.2, 1) forwards;
+  transform-origin: center center;
+}
+
+/* Tab active indicator slide */
+@keyframes tabSlide {
+  from { opacity: 0; transform: scaleX(0.7); }
+  to   { opacity: 1; transform: scaleX(1); }
+}
+.tab-active-pill {
+  animation: tabSlide 0.2s ease-out forwards;
+}
+
+/* ── Floating animation for feature tags ────────────────────── */
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-8px); }
+}
+
+@keyframes floatReverse {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(8px); }
+}
+
+.animate-float-1 {
+  animation: floatSlow 4s ease-in-out infinite;
+}
+.animate-float-2 {
+  animation: floatReverse 4.5s ease-in-out infinite 0.5s;
+}
+.animate-float-3 {
+  animation: floatSlow 5s ease-in-out infinite 1s;
+}
+.animate-float-4 {
+  animation: floatReverse 3.8s ease-in-out infinite 0.3s;
+}
+.animate-float-5 {
+  animation: floatSlow 4.2s ease-in-out infinite 0.8s;
+}
+.animate-float-6 {
+  animation: floatReverse 4.8s ease-in-out infinite 1.2s;
+}
+
+/* ── 3D Liquid Organic Bubbles ───────────────────────────────────── */
+@keyframes blobMorph1 {
+  0%, 100% { border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%; transform: translateY(0px) rotate(0deg); }
+  33%      { border-radius: 65% 35% 40% 60% / 55% 65% 35% 45%; transform: translateY(-12px) rotate(6deg); }
+  66%      { border-radius: 35% 65% 60% 40% / 65% 35% 55% 45%; transform: translateY(6px) rotate(-4deg); }
+}
+
+@keyframes blobMorph2 {
+  0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; transform: translateY(0px) rotate(0deg) scale(1); }
+  50%      { border-radius: 40% 60% 65% 35% / 40% 65% 35% 60%; transform: translateY(-10px) rotate(-8deg) scale(1.04); }
+}
+
+@keyframes bubbleFloat {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50%      { transform: translateY(-14px) scale(1.05); }
+}
+
+.animate-blob-1 {
+  animation: blobMorph1 7s ease-in-out infinite;
+}
+.animate-blob-2 {
+  animation: blobMorph2 8s ease-in-out infinite 1s;
+}
+.animate-bubble-float {
+  animation: bubbleFloat 5.5s ease-in-out infinite;
+}
+
+.bubble-3d-purple {
+  background: radial-gradient(circle at 35% 35%, #d8b4fe 0%, #a855f7 40%, #7e22ce 75%, #581c87 100%);
+  box-shadow: 
+    inset -8px -8px 16px rgba(45, 10, 80, 0.4),
+    inset 8px 8px 16px rgba(255, 255, 255, 0.6),
+    0 15px 35px rgba(168, 85, 247, 0.35);
+}
+
+.bubble-3d-indigo {
+  background: radial-gradient(circle at 35% 35%, #c7d2fe 0%, #6366f1 40%, #4338ca 75%, #312e81 100%);
+  box-shadow: 
+    inset -8px -8px 16px rgba(30, 27, 75, 0.4),
+    inset 8px 8px 16px rgba(255, 255, 255, 0.6),
+    0 15px 35px rgba(99, 102, 241, 0.35);
+}
+
+
