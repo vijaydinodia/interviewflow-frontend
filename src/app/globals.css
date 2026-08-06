@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0B151E;
+  --foreground: #ffffff;
+}
+
+html[data-theme="dark"] {
+  --background: #0B151E;
+  --foreground: #ffffff;
+}
+
+html[data-theme="light"] {
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -11,17 +21,173 @@
   --font-sans: var(--font-jakarta), system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   CLEAN LIGHT THEME OVERRIDES (data-theme="light")
+   ───────────────────────────────────────────────────────────── */
+html[data-theme="light"] body {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+
+html[data-theme="light"] header {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: #E2E8F0 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05) !important;
+}
+
+html[data-theme="light"] header nav a,
+html[data-theme="light"] header nav span {
+  color: #334155 !important;
+}
+
+html[data-theme="light"] header nav a:hover {
+  color: #0284c7 !important;
+}
+
+html[data-theme="light"] footer {
+  background-color: #F1F5F9 !important;
+  border-color: #CBD5E1 !important;
+  color: #0F172A !important;
+}
+
+/* Background containers (matching exact and opacity class selectors) */
+html[data-theme="light"] .bg-\[\#0B151E\],
+html[data-theme="light"] [class*="bg-[#0B151E]"] {
+  background-color: #F8FAFC !important;
+}
+
+html[data-theme="light"] .bg-\[\#111C28\],
+html[data-theme="light"] [class*="bg-[#111C28]"] {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08) !important;
+}
+
+html[data-theme="light"] .bg-\[\#0E1B27\],
+html[data-theme="light"] [class*="bg-[#0E1B27]"] {
+  background-color: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Buttons in Light Mode */
+html[data-theme="light"] .bg-white\/5 {
+  background-color: #F1F5F9 !important;
+  border-color: #CBD5E1 !important;
+  color: #1E293B !important;
+}
+
+html[data-theme="light"] .bg-white\/5:hover {
+  background-color: #E2E8F0 !important;
+}
+
+html[data-theme="light"] .border-cyan-500\/25 {
+  border-color: #CBD5E1 !important;
+}
+
+html[data-theme="light"] .text-slate-200 {
+  color: #1E293B !important;
+}
+
+/* Typography in Light Mode */
+html[data-theme="light"] h1,
+html[data-theme="light"] h2,
+html[data-theme="light"] h3,
+html[data-theme="light"] h4 {
+  color: #0F172A !important;
+}
+
+html[data-theme="light"] .text-white {
+  color: #0F172A !important;
+}
+
+html[data-theme="light"] .text-slate-300 {
+  color: #334155 !important;
+}
+
+html[data-theme="light"] .text-slate-400 {
+  color: #475569 !important;
+}
+
+html[data-theme="light"] .text-amber-300,
+html[data-theme="light"] [class*="text-amber-300"] {
+  color: #b45309 !important;
+}
+
+html[data-theme="light"] .text-cyan-300 {
+  color: #0284c7 !important;
+}
+
+html[data-theme="light"] .text-cyan-400 {
+  color: #0284c7 !important;
+}
+
+/* Video Card Header and Inner Elements in Light Mode */
+html[data-theme="light"] .bg-\[\#070D15\] {
+  background-color: #E2E8F0 !important;
+}
+
+html[data-theme="light"] .bg-\[\#080E18\] {
+  background-color: #F1F5F9 !important;
+  border-color: #CBD5E1 !important;
+  color: #0F172A !important;
+}
+
+html[data-theme="light"] .bg-\[\#080E18\] .text-cyan-300 {
+  color: #0284c7 !important;
+}
+
+html[data-theme="light"] .bg-\[\#080E18\] .text-slate-400 {
+  color: #475569 !important;
+}
+
+html[data-theme="light"] .bg-\[\#0B151E\]\/90 {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+  color: #FFFFFF !important;
+}
+
+html[data-theme="light"] .bg-\[\#0B151E\]\/90 span {
+  color: #FFFFFF !important;
+}
+
+/* ── Marquee Side Fade Overlays ─────────────────────────────── */
+.marquee-fade-left {
+  background: linear-gradient(to right, #0B151E 0%, transparent 100%);
+}
+
+.marquee-fade-right {
+  background: linear-gradient(to left, #0B151E 0%, transparent 100%);
+}
+
+html[data-theme="light"] .marquee-fade-left {
+  background: linear-gradient(to right, #F8FAFC 0%, transparent 100%) !important;
+}
+
+html[data-theme="light"] .marquee-fade-right {
+  background: linear-gradient(to left, #F8FAFC 0%, transparent 100%) !important;
+}
+
+.marquee-fade-box-left {
+  background: linear-gradient(to right, #0E1B27 0%, transparent 100%);
+}
+
+.marquee-fade-box-right {
+  background: linear-gradient(to left, #0E1B27 0%, transparent 100%);
+}
+
+html[data-theme="light"] .marquee-fade-box-left {
+  background: linear-gradient(to right, #FFFFFF 0%, transparent 100%) !important;
+}
+
+html[data-theme="light"] .marquee-fade-box-right {
+  background: linear-gradient(to left, #FFFFFF 0%, transparent 100%) !important;
 }
 
 /* ── Auth page 3D flip animations ─────────────────────────── */
@@ -83,46 +249,43 @@ body {
 }
 
 /* ── 3D Liquid Organic Bubbles ───────────────────────────────────── */
-@keyframes blobMorph1 {
-  0%, 100% { border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%; transform: translateY(0px) rotate(0deg); }
-  33%      { border-radius: 65% 35% 40% 60% / 55% 65% 35% 45%; transform: translateY(-12px) rotate(6deg); }
-  66%      { border-radius: 35% 65% 60% 40% / 65% 35% 55% 45%; transform: translateY(6px) rotate(-4deg); }
-}
-
-@keyframes blobMorph2 {
-  0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; transform: translateY(0px) rotate(0deg) scale(1); }
-  50%      { border-radius: 40% 60% 65% 35% / 40% 65% 35% 60%; transform: translateY(-10px) rotate(-8deg) scale(1.04); }
-}
-
-@keyframes bubbleFloat {
-  0%, 100% { transform: translateY(0px) scale(1); }
-  50%      { transform: translateY(-14px) scale(1.05); }
-}
-
-.animate-blob-1 {
+.bubble-3d-purple {
+  background: radial-gradient(circle at 30% 30%, #a855f7 0%, #6366f1 45%, #312e81 85%, #1e1b4b 100%);
+  box-shadow:
+    inset -4px -4px 10px rgba(0, 0, 0, 0.6),
+    inset 4px 4px 8px rgba(255, 255, 255, 0.5),
+    0 12px 28px rgba(168, 85, 247, 0.35);
   animation: blobMorph1 7s ease-in-out infinite;
 }
-.animate-blob-2 {
-  animation: blobMorph2 8s ease-in-out infinite 1s;
-}
+
 .animate-bubble-float {
-  animation: bubbleFloat 5.5s ease-in-out infinite;
+  animation: bubbleFloat 6s ease-in-out infinite, blobMorph1 8s ease-in-out infinite;
 }
 
-.bubble-3d-purple {
-  background: radial-gradient(circle at 35% 35%, #d8b4fe 0%, #a855f7 40%, #7e22ce 75%, #581c87 100%);
-  box-shadow: 
-    inset -8px -8px 16px rgba(45, 10, 80, 0.4),
-    inset 8px 8px 16px rgba(255, 255, 255, 0.6),
-    0 15px 35px rgba(168, 85, 247, 0.35);
+/* ── Marquee Keyframe Animations ────────────────────────────────── */
+@keyframes marqueeLeftToRight {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0%); }
 }
 
-.bubble-3d-indigo {
-  background: radial-gradient(circle at 35% 35%, #c7d2fe 0%, #6366f1 40%, #4338ca 75%, #312e81 100%);
-  box-shadow: 
-    inset -8px -8px 16px rgba(30, 27, 75, 0.4),
-    inset 8px 8px 16px rgba(255, 255, 255, 0.6),
-    0 15px 35px rgba(99, 102, 241, 0.35);
+@keyframes marqueeRightToLeft {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
 }
 
+.animate-marquee-left {
+  display: flex;
+  width: max-content;
+  animation: marqueeLeftToRight 28s linear infinite;
+}
 
+.animate-marquee-right {
+  display: flex;
+  width: max-content;
+  animation: marqueeRightToLeft 28s linear infinite;
+}
+
+.animate-marquee-left:hover,
+.animate-marquee-right:hover {
+  animation-play-state: paused;
+}

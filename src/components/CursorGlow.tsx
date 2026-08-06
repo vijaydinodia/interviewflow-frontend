@@ -31,7 +31,6 @@ export const CursorGlow: React.FC<CursorGlowProps> = ({
   const [isMobile, setIsMobile] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
 
-  // Check if touch device or mobile screen
   useEffect(() => {
     const checkMobile = () => {
       const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
@@ -44,7 +43,6 @@ export const CursorGlow: React.FC<CursorGlowProps> = ({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Mouse move and smooth lerp animation frame loop
   useEffect(() => {
     if (isMobile) return;
 
@@ -67,12 +65,10 @@ export const CursorGlow: React.FC<CursorGlowProps> = ({
     document.body.addEventListener("mouseleave", handleMouseLeave);
     document.body.addEventListener("mouseenter", handleMouseEnter);
 
-    // Linear interpolation helper
     const lerp = (start: number, end: number, factor: number) => {
       return start + (end - start) * factor;
     };
 
-    // 60FPS animation loop
     const animate = () => {
       currentPos.current.x = lerp(currentPos.current.x, targetPos.current.x, ease);
       currentPos.current.y = lerp(currentPos.current.y, targetPos.current.y, ease);

@@ -3,11 +3,9 @@
 import { useState, useEffect } from "react";
 
 export default function CursorGlow() {
-  // 1. Simple state to store current mouse X and Y position
   const [position, setPosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
-    // 2. Function to update position state when mouse moves
     const handleMouseMove = (event) => {
       setPosition({
         x: event.clientX,
@@ -15,10 +13,8 @@ export default function CursorGlow() {
       });
     };
 
-    // 3. Add mouse move event listener
     window.addEventListener("mousemove", handleMouseMove);
 
-    // 4. Cleanup listener when page closes or component unmounts
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
     };
@@ -29,7 +25,6 @@ export default function CursorGlow() {
       aria-hidden="true"
       className="pointer-events-none fixed inset-0 z-30 overflow-hidden"
     >
-      {/* 5. Glowing purple circle following mouse */}
       <div
         className="pointer-events-none absolute w-[400px] h-[400px] rounded-full blur-[120px] transition-transform duration-300 ease-out"
         style={{
