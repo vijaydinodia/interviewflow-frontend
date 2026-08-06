@@ -5,13 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   User, Code2, Laptop, Video, Building2, Briefcase,
-  Lock, Mail, Eye, EyeOff, CheckCircle, XCircle,
+  Lock, Mail, Eye, EyeOff, AlertCircle,
 } from "lucide-react";
 import AuthLayout from "../_components/AuthLayout";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ROLES
-// ─────────────────────────────────────────────────────────────────────────────
 const ROLES = [
   {
     id: "candidate",
@@ -48,73 +45,100 @@ const ROLES = [
   },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TOAST
-// ─────────────────────────────────────────────────────────────────────────────
-function Toast({ message, type, onClose }) {
-  return (
-    <div className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 rounded-2xl px-4 py-3 shadow-2xl text-xs font-semibold ${
-      type === "success"
-        ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
-        : "bg-red-50 border border-red-200 text-red-800"
-    }`}>
-      {type === "success"
-        ? <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
-        : <XCircle className="h-4 w-4 text-red-500 shrink-0" />}
-      <span>{message}</span>
-      <button onClick={onClose} className="ml-1 text-slate-400 hover:text-slate-600 text-sm">✕</button>
-    </div>
-  );
-}
+const initialData = {
+  email: "",
+  password: "",
+  rememberMe: false,
+};
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LOGIN PAGE
-// ─────────────────────────────────────────────────────────────────────────────
 export default function LoginPage() {
   const router = useRouter();
+
   const [selectedRole, setSelectedRole] = useState("candidate");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  const [formData, setFormData] = useState(initialData);
+  const [errors, setErrors] = useState({});
   const [showPwd, setShowPwd] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [toast, setToast] = useState(null);
 
-  const activeRole = ROLES.find((r) => r.id === selectedRole);
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    const fieldValue = type === "checkbox" ? checked : value;
 
-  const showToast = (msg, type = "error") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 4000);
+    const updatedErrors = { ...errors };
+    delete updatedErrors[name];
+    delete updatedErrors.form;
+    setErrors(updatedErrors);
+
+    setFormData({
+      ...formData,
+      [name]: fieldValue,
+    });
+  };
+
+  const handleRoleSelect = (roleId) => {
+    setErrors({});
+    setSelectedRole(roleId);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setErrors({});
+
+    const newError = {};
+
+    if (formData.email === "") {
+      newError.email = "Email is required.";
+    }
+    if (formData.password === "") {
+      newError.password = "Password is required.";
+    }
+
+    if (Object.keys(newError).length > 0) {
+      setErrors(newError);
+      return;
+    }
+
     setIsLoading(true);
-    const users = JSON.parse(localStorage.getItem("interviewflow_users") || "[]");
-    const match = users.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password && u.role === selectedRole
-    );
+
+    const savedUsers = localStorage.getItem("interviewflow_users");
+    let usersList = [];
+    if (savedUsers) {
+      usersList = JSON.parse(savedUsers);
+    }
+
+    let match = null;
+    for (let i = 0; i < usersList.length; i++) {
+      const user = usersList[i];
+      if (
+        user.email.toLowerCase() === formData.email.toLowerCase() &&
+        user.password === formData.password &&
+        user.role === selectedRole
+      ) {
+        match = user;
+        break;
+      }
+    }
+
     if (!match) {
-      const emailExists = users.some((u) => u.email.toLowerCase() === email.toLowerCase());
-      showToast(emailExists ? "Incorrect password or role." : "No account found — please sign up.");
+      const authError = {};
+      authError.form = "Invalid email, password, or role selected.";
+      setErrors(authError);
       setIsLoading(false);
       return;
     }
-    localStorage.setItem("interviewflow_session", JSON.stringify({
-      id: match.id, fullName: match.fullName, email: match.email, role: match.role,
-      loggedInAt: new Date().toISOString(),
-    }));
-    if (!rememberMe) sessionStorage.setItem("interviewflow_session_temp", "true");
-    showToast(`Welcome back, ${match.fullName}!`, "success");
-    setTimeout(() => router.push("/"), 1400);
-    setIsLoading(false);
+
+    const sessionUser = {
+      fullName: match.fullName,
+      email: match.email,
+      role: match.role,
+    };
+    localStorage.setItem("interviewflow_session", JSON.stringify(sessionUser));
+
+    router.push("/");
   };
 
   return (
     <AuthLayout>
-      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-
-      {/* ── Logo ── */}
       <div className="flex items-center gap-2 mb-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-extrabold text-sm shadow">
           iF
@@ -124,11 +148,16 @@ export default function LoginPage() {
         </span>
       </div>
 
-      {/* ── Heading ── */}
       <h2 className="text-2xl font-extrabold text-slate-900 mb-1">Welcome Back</h2>
       <p className="text-sm text-slate-500 mb-5">Choose how you want to continue</p>
 
-      {/* ── Role selector (3 col, with bullets) ── */}
+      {errors.form && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 px-3.5 py-2.5 text-xs text-red-700 font-medium">
+          <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+          <span>{errors.form}</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-3 mb-5">
         {ROLES.map((role) => {
           const isSelected = selectedRole === role.id;
@@ -136,7 +165,7 @@ export default function LoginPage() {
             <button
               key={role.id}
               type="button"
-              onClick={() => setSelectedRole(role.id)}
+              onClick={() => handleRoleSelect(role.id)}
               className={`flex flex-col items-center text-center rounded-2xl p-3 border-2 transition-all duration-200 ${
                 isSelected
                   ? "border-indigo-500 bg-indigo-50/70 shadow-sm"
@@ -144,12 +173,18 @@ export default function LoginPage() {
               }`}
             >
               <div className="mb-1.5">{role.icon}</div>
-              <div className={`text-xs font-bold mb-2 ${isSelected ? "text-indigo-700" : "text-slate-800"}`}>
+              <div
+                className={`text-xs font-bold mb-2 ${
+                  isSelected ? "text-indigo-700" : "text-slate-800"
+                }`}
+              >
                 {role.title}
               </div>
               <ul className="space-y-0.5">
-                {role.bullets.map((b) => (
-                  <li key={b} className="text-[10px] text-slate-500 leading-snug">{b}</li>
+                {role.bullets.map((bulletText) => (
+                  <li key={bulletText} className="text-[10px] text-slate-500 leading-snug">
+                    {bulletText}
+                  </li>
                 ))}
               </ul>
             </button>
@@ -157,10 +192,11 @@ export default function LoginPage() {
         })}
       </div>
 
-      {/* ── OAuth — 2 buttons side by side ── */}
       <div className="grid grid-cols-2 gap-3 mb-4">
-        {/* Google */}
-        <button type="button" className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
+        <button
+          type="button"
+          className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+        >
           <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
@@ -170,8 +206,10 @@ export default function LoginPage() {
           Continue with Google
         </button>
 
-        {/* GitHub */}
-        <button type="button" className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
+        <button
+          type="button"
+          className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+        >
           <svg className="h-4 w-4 shrink-0 fill-current text-slate-900" viewBox="0 0 24 24">
             <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
           </svg>
@@ -179,77 +217,94 @@ export default function LoginPage() {
         </button>
       </div>
 
-      {/* ── OR divider ── */}
       <div className="relative mb-4 flex items-center">
         <div className="flex-1 border-t border-slate-200" />
-        <span className="mx-4 text-xs text-slate-400 uppercase tracking-widest font-medium">OR</span>
+        <span className="mx-4 text-xs text-slate-400 uppercase tracking-widest font-medium">
+          OR
+        </span>
         <div className="flex-1 border-t border-slate-200" />
       </div>
 
-      {/* ── Inputs — side by side ── */}
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-2 gap-3 mb-3">
-          {/* Email */}
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/80 pl-9 pr-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20 focus:bg-white transition-colors"
-            />
+          <div>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="Email"
+                className={`w-full rounded-xl border pl-9 pr-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors ${
+                  errors.email
+                    ? "border-red-300 bg-red-50/50 focus:border-red-400 focus:ring-red-400/20"
+                    : "border-slate-200 bg-slate-50/80 focus:border-indigo-400 focus:ring-indigo-400/20 focus:bg-white"
+                }`}
+              />
+            </div>
+            {errors.email && (
+              <p className="text-[11px] text-red-500 mt-1 font-medium pl-1">{errors.email}</p>
+            )}
           </div>
 
-          {/* Password */}
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-            <input
-              type={showPwd ? "text" : "password"}
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/80 pl-9 pr-9 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/20 focus:bg-white transition-colors"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPwd(!showPwd)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-            >
-              {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
+          <div>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+              <input
+                type={showPwd ? "text" : "password"}
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Password"
+                className={`w-full rounded-xl border pl-9 pr-9 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors ${
+                  errors.password
+                    ? "border-red-300 bg-red-50/50 focus:border-red-400 focus:ring-red-400/20"
+                    : "border-slate-200 bg-slate-50/80 focus:border-indigo-400 focus:ring-indigo-400/20 focus:bg-white"
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd(!showPwd)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {errors.password && (
+              <p className="text-[11px] text-red-500 mt-1 font-medium pl-1">{errors.password}</p>
+            )}
           </div>
         </div>
 
-        {/* ── Remember Me + Forgot ── */}
         <div className="flex items-center justify-between mb-4">
           <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-600">
             <input
               type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
+              name="rememberMe"
+              checked={formData.rememberMe}
+              onChange={handleChange}
               className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-400 h-3.5 w-3.5"
             />
             Remember Me
           </label>
-          <Link href="/forget" className="text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors">
+          <Link
+            href="/forget"
+            className="text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors"
+          >
             Forgot Password
           </Link>
         </div>
 
-        {/* ── Submit ── */}
         <button
           type="submit"
           disabled={isLoading}
           className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 hover:opacity-95 transition-all active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed mb-4"
         >
-          {isLoading ? "Signing In…" : activeRole?.btnText}
+          {isLoading ? "Signing In…" : "Continue as Candidate"}
         </button>
       </form>
 
-      {/* ── Footer links ── */}
       <p className="text-center text-xs text-slate-500 mb-4">
         Don&apos;t have an account?{" "}
         <Link href="/register" className="font-bold text-indigo-600 hover:underline">
@@ -257,7 +312,6 @@ export default function LoginPage() {
         </Link>
       </p>
 
-      {/* ── Encryption note ── */}
       <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-400">
         <Lock className="h-3 w-3" />
         Your data is protected with enterprise-grade encryption.

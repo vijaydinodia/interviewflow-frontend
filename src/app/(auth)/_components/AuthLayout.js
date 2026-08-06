@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Header from "@/components/Header";
 import { Monitor, Settings, Video, Shield, BarChart3, Users2 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FEATURE CHIP  (left / right of mockup)
+// FEATURE CHIP
 // ─────────────────────────────────────────────────────────────────────────────
 function Chip({ icon, label }) {
   return (
@@ -19,21 +20,19 @@ function Chip({ icon, label }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GAUGE — circular arc with "68" in centre, matching the reference
+// GAUGE
 // ─────────────────────────────────────────────────────────────────────────────
 function Gauge({ value = 68 }) {
   const r = 18;
-  const circ = 2 * Math.PI * r;          // ≈ 113.1
-  const trackArc = circ * 0.75;          // 270° track
-  const filled = trackArc * (value / 100); // value% of track
+  const circ = 2 * Math.PI * r;
+  const trackArc = circ * 0.75;
+  const filled = trackArc * (value / 100);
 
   return (
     <svg viewBox="0 0 44 44" className="w-14 h-14">
-      {/* background track */}
       <circle cx="22" cy="22" r={r} fill="none" stroke="#e2e8f0" strokeWidth="4"
         strokeDasharray={`${trackArc} ${circ - trackArc}`} strokeLinecap="round"
         style={{ transform: "rotate(135deg)", transformOrigin: "22px 22px" }} />
-      {/* progress */}
       <circle cx="22" cy="22" r={r} fill="none" stroke="url(#gaugeG)" strokeWidth="4"
         strokeDasharray={`${filled} ${circ - filled}`} strokeLinecap="round"
         style={{ transform: "rotate(135deg)", transformOrigin: "22px 22px" }} />
@@ -139,7 +138,6 @@ function DashboardMockup() {
         <div className="flex-1 bg-slate-50/30 flex flex-col overflow-hidden">
           {/* ROW 1: IDE | AI Score | Video */}
           <div className="flex border-b border-slate-100" style={{ height: 105 }}>
-            {/* Live Coding IDE */}
             <div className="flex-1 flex flex-col border-r border-slate-100 overflow-hidden">
               <div className="flex items-center justify-between px-2 py-1 bg-white border-b border-slate-100 shrink-0">
                 <span className="text-[7px] font-bold text-slate-700">Live Coding IDE</span>
@@ -157,7 +155,6 @@ function DashboardMockup() {
               </div>
             </div>
 
-            {/* AI Evaluation Score */}
             <div className="flex flex-col border-r border-slate-100 bg-white overflow-hidden" style={{ width: 92 }}>
               <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 shrink-0">
                 <span className="text-[6.5px] font-bold text-slate-700 leading-tight">AI Evaluation<br/>Score</span>
@@ -172,7 +169,6 @@ function DashboardMockup() {
               </div>
             </div>
 
-            {/* Video Interview */}
             <div className="flex flex-col bg-white overflow-hidden" style={{ width: 100 }}>
               <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 shrink-0">
                 <span className="text-[7px] font-bold text-slate-700">Video Interview</span>
@@ -295,7 +291,7 @@ function DashboardMockup() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SPLASH CURSOR EFFECT (Canvas-based Light Tone Fluid Splash & Ripple)
+// SPLASH CURSOR EFFECT
 // ─────────────────────────────────────────────────────────────────────────────
 function SplashCursor() {
   useEffect(() => {
@@ -315,19 +311,17 @@ function SplashCursor() {
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
 
-    // Light tone pastel palette: soft violet, indigo, lavender, sky blue
     const colors = [
-      "rgba(167, 139, 250, ", // soft violet (#a78bfa)
-      "rgba(129, 140, 248, ", // soft indigo (#818cf8)
-      "rgba(192, 132, 252, ", // soft lavender (#c084fc)
-      "rgba(147, 197, 253, ", // soft sky blue (#93c5fd)
+      "rgba(167, 139, 250, ",
+      "rgba(129, 140, 248, ",
+      "rgba(192, 132, 252, ",
+      "rgba(147, 197, 253, ",
     ];
 
     let lastX = 0;
     let lastY = 0;
 
     const addSplash = (x, y, isClick = false) => {
-      // Ripple rings
       const count = isClick ? 3 : 1;
       for (let i = 0; i < count; i++) {
         ripples.push({
@@ -341,7 +335,6 @@ function SplashCursor() {
         });
       }
 
-      // Light splash particles
       const pCount = isClick ? 10 : 2;
       for (let i = 0; i < pCount; i++) {
         const angle = Math.random() * Math.PI * 2;
@@ -378,7 +371,6 @@ function SplashCursor() {
     const render = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Render ripples
       for (let i = ripples.length - 1; i >= 0; i--) {
         const r = ripples[i];
         r.radius += r.speed;
@@ -396,7 +388,6 @@ function SplashCursor() {
         ctx.stroke();
       }
 
-      // Render particles
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.x += p.vx;
@@ -442,116 +433,74 @@ function SplashCursor() {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AuthLayout({ children }) {
   return (
-    <div
-      className="h-screen overflow-hidden flex font-sans relative"
-      style={{ background: "linear-gradient(135deg,#ede9fe 0%,#e4e0fd 30%,#ddd6fe 70%,#e8e3ff 100%)" }}
-    >
-      {/* ── LIGHT TONE SPLASH CURSOR EFFECT ── */}
-      <SplashCursor />
+    <div className="h-screen overflow-hidden flex flex-col font-sans relative"
+      style={{ background: "linear-gradient(135deg,#ede9fe 0%,#e4e0fd 30%,#ddd6fe 70%,#e8e3ff 100%)" }}>
+      
+      {/* ── Top Header Bar (Shown for logged out users to navigate between Home & Login) ── */}
+      <Header />
 
+      {/* ── Main Layout Body ── */}
+      <div className="flex-1 min-h-0 flex relative">
+        {/* Splash Cursor */}
+        <SplashCursor />
 
-      {/* ── 3D FLOATING BUBBLES (Smaller, balanced scale) ── */}
-      {/* Right side 3D sphere bubble (matching reference img top right) */}
-      <div className="absolute top-7 right-8 z-20 w-9 h-9 rounded-full bubble-3d-purple bubble-3d animate-bubble-float transition-transform duration-300 hover:scale-125 cursor-pointer shadow-lg" />
+        {/* 3D Floating Bubbles */}
+        <div className="absolute top-7 right-8 z-20 w-9 h-9 rounded-full bubble-3d-purple bubble-3d animate-bubble-float transition-transform duration-300 hover:scale-125 cursor-pointer shadow-lg" />
+        <div className="absolute top-6 left-6 z-0 w-7 h-7 rounded-full bubble-3d-purple bubble-3d animate-bubble-float opacity-75 transition-transform duration-300 hover:scale-125 cursor-pointer" />
 
-      {/* Hero top-left 3D bubble */}
-      <div className="absolute top-6 left-6 z-0 w-7 h-7 rounded-full bubble-3d-purple bubble-3d animate-bubble-float opacity-75 transition-transform duration-300 hover:scale-125 cursor-pointer" />
-
-      {/* Decorative background ambient glows */}
-      <div className="pointer-events-none absolute -top-20 -left-20 w-72 h-72 rounded-full opacity-50"
-        style={{ background: "radial-gradient(circle,#a78bfa,transparent 65%)" }} />
-      <div className="pointer-events-none absolute bottom-10 left-1/3 w-48 h-48 rounded-full opacity-30"
-        style={{ background: "radial-gradient(circle,#818cf8,transparent 70%)" }} />
-
-      {/* ── LEFT PANEL ──────────────────────────────────── */}
-      <div className="flex-1 min-w-0 flex flex-col px-10 xl:px-14 py-7 overflow-hidden">
-        {/* Logo */}
-        <div className="shrink-0 flex items-center gap-2.5 mb-7">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-extrabold text-sm shadow-md">
-            iF
-          </div>
-          <span className="text-lg font-bold tracking-tight text-slate-900 font-sans">
-            Interview<span className="text-indigo-600">Flow</span>
-          </span>
-        </div>
-
-        {/* Hero */}
-        <div className="shrink-0 mb-5">
-          <h1 className="text-3xl xl:text-4xl font-extrabold text-slate-900 leading-[1.12] mb-2.5 tracking-tight font-sans">
-            The smarter way to conduct
-            <br />
-            <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              technical interviews
-            </span>
-          </h1>
-          <p className="text-slate-600 text-sm leading-relaxed max-w-md font-sans">
-            Conduct live coding interviews, collaborate in real time, evaluate candidates
-            with AI, and hire top developers—all from one platform.
-          </p>
-        </div>
-
-        {/* Mockup + chips + liquid 3D blobs */}
-        <div className="flex-1 min-h-0 relative">
-          {/* Organic liquid 3D blob: top-right of mockup */}
-          <div className="absolute z-0 w-14 h-14 bubble-3d-purple bubble-3d animate-blob-1 opacity-90 transition-transform duration-300 hover:scale-120 cursor-pointer pointer-events-auto"
-            style={{ right: 125, top: "-10px" }} />
-
-          {/* Organic liquid 3D blob: bottom-left of mockup */}
-          <div className="absolute z-0 w-16 h-16 bubble-3d-indigo bubble-3d animate-blob-2 opacity-90 transition-transform duration-300 hover:scale-120 cursor-pointer pointer-events-auto"
-            style={{ left: 85, bottom: "-14px" }} />
-
-          {/* Organic liquid 3D blob: bottom-center of mockup */}
-          <div className="absolute z-0 w-22 h-11 bubble-3d-purple bubble-3d animate-blob-1 opacity-85 transition-transform duration-300 hover:scale-120 cursor-pointer pointer-events-auto"
-            style={{ left: "42%", bottom: "-16px" }} />
-
-
-          {/* Dashboard mockup */}
-          <div className="absolute z-1 flex items-center" style={{ left: 118, right: 158, top: 0, bottom: 0 }}>
-            <DashboardMockup />
-          </div>
-
-
-          {/* Left chips */}
-          <div className="absolute z-10 animate-float-1" style={{ left: 0, top: "8%" }}>
-            <Chip icon={<Monitor className="h-5 w-5 text-indigo-600" />} label="Live Coding" />
-          </div>
-          <div className="absolute z-10 animate-float-2" style={{ left: 0, top: "40%" }}>
-            <Chip icon={<Settings className="h-5 w-5 text-purple-600" />} label="AI Feedback" />
-          </div>
-          <div className="absolute z-10 animate-float-3" style={{ left: 0, top: "67%" }}>
-            <Chip icon={<Video className="h-5 w-5 text-blue-600" />} label="Video Interview" />
-          </div>
-
-          {/* Right chips */}
-          <div className="absolute z-10 animate-float-4" style={{ right: 0, top: "22%" }}>
-            <Chip icon={<Shield className="h-5 w-5 text-indigo-600" />} label="Enterprise Security" />
-          </div>
-          <div className="absolute z-10 animate-float-5" style={{ right: 0, top: "47%" }}>
-            <Chip icon={<BarChart3 className="h-5 w-5 text-indigo-600" />} label="Analytics" />
-          </div>
-          <div className="absolute z-10 animate-float-6" style={{ right: 0, top: "70%" }}>
-            <Chip icon={<Users2 className="h-5 w-5 text-purple-600" />} label="Real-Time Collaboration" />
-          </div>
-        </div>
-
-        {/* Trusted by */}
-        <div className="shrink-0 mt-4">
-          <p className="text-slate-500 text-sm">
-            Trusted by{" "}
-            {["Google", "Microsoft", "Amazon", "Adobe", "Meta", "Stripe"].map((c, i, arr) => (
-              <span key={c}>
-                <span className="font-semibold text-slate-700">{c}</span>
-                {i < arr.length - 1 && ", "}
+        {/* Left hero & mockups */}
+        <div className="flex-1 min-w-0 flex flex-col px-10 xl:px-14 py-5 overflow-hidden">
+          <div className="shrink-0 mb-4">
+            <h1 className="text-3xl xl:text-4xl font-extrabold text-slate-900 leading-[1.12] mb-2 tracking-tight font-sans">
+              The smarter way to conduct
+              <br />
+              <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                technical interviews
               </span>
-            ))}
-          </p>
-        </div>
-      </div>
+            </h1>
+            <p className="text-slate-600 text-sm leading-relaxed max-w-md font-sans">
+              Conduct live coding interviews, collaborate in real time, evaluate candidates
+              with AI, and hire top developers—all from one platform.
+            </p>
+          </div>
 
-      {/* ── RIGHT PANEL — card slot ──────────────────────── */}
-      <div className="shrink-0 w-[480px] xl:w-[520px] flex items-center justify-center p-6">
-        <div className="w-full rounded-3xl bg-white border border-slate-100/60 shadow-2xl shadow-indigo-200/30 p-7 max-h-[calc(100vh-48px)] overflow-y-auto">
-          {children}
+          <div className="flex-1 min-h-0 relative">
+            <div className="absolute z-0 w-14 h-14 bubble-3d-purple bubble-3d animate-blob-1 opacity-90 transition-transform duration-300 hover:scale-120 cursor-pointer pointer-events-auto"
+              style={{ right: 125, top: "-10px" }} />
+            <div className="absolute z-0 w-16 h-16 bubble-3d-indigo bubble-3d animate-blob-2 opacity-90 transition-transform duration-300 hover:scale-120 cursor-pointer pointer-events-auto"
+              style={{ left: 85, bottom: "-14px" }} />
+
+            <div className="absolute z-1 flex items-center" style={{ left: 118, right: 158, top: 0, bottom: 0 }}>
+              <DashboardMockup />
+            </div>
+
+            <div className="absolute z-10 animate-float-1" style={{ left: 0, top: "8%" }}>
+              <Chip icon={<Monitor className="h-5 w-5 text-indigo-600" />} label="Live Coding" />
+            </div>
+            <div className="absolute z-10 animate-float-2" style={{ left: 0, top: "40%" }}>
+              <Chip icon={<Settings className="h-5 w-5 text-purple-600" />} label="AI Feedback" />
+            </div>
+            <div className="absolute z-10 animate-float-3" style={{ left: 0, top: "67%" }}>
+              <Chip icon={<Video className="h-5 w-5 text-blue-600" />} label="Video Interview" />
+            </div>
+
+            <div className="absolute z-10 animate-float-4" style={{ right: 0, top: "22%" }}>
+              <Chip icon={<Shield className="h-5 w-5 text-indigo-600" />} label="Enterprise Security" />
+            </div>
+            <div className="absolute z-10 animate-float-5" style={{ right: 0, top: "47%" }}>
+              <Chip icon={<BarChart3 className="h-5 w-5 text-indigo-600" />} label="Analytics" />
+            </div>
+            <div className="absolute z-10 animate-float-6" style={{ right: 0, top: "70%" }}>
+              <Chip icon={<Users2 className="h-5 w-5 text-purple-600" />} label="Real-Time Collaboration" />
+            </div>
+          </div>
+        </div>
+
+        {/* Right card slot */}
+        <div className="shrink-0 w-[480px] xl:w-[520px] flex items-center justify-center p-6 overflow-hidden">
+          <div className="w-full rounded-3xl bg-white border border-slate-100/60 shadow-2xl shadow-indigo-200/30 p-6 overflow-hidden">
+            {children}
+          </div>
         </div>
       </div>
     </div>
