@@ -14,8 +14,6 @@ import {
 export default function Footer() {
   return (
     <footer className="w-full bg-[#070D15] border-t border-cyan-500/20 text-white pt-16 pb-10 relative overflow-hidden font-sans z-10">
-      return (
-      <footer className="w-full bg-[#070D15] border-t border-cyan-500/20 text-white pt-16 pb-10 relative overflow-hidden font-sans z-10">
         <div className="pointer-events-none absolute bottom-0 left-10 w-[400px] h-[400px] bg-cyan-500/5 rounded-full blur-[140px]" />
         <div className="pointer-events-none absolute bottom-0 right-10 w-[400px] h-[400px] bg-teal-500/5 rounded-full blur-[140px]" />
 
@@ -318,6 +316,5 @@ export default function Footer() {
           </div>
         </div>
       </footer>
-    </footer>
   );
 }
