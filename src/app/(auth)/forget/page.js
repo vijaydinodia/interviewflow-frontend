@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Lock, Mail, CheckCircle2, ArrowLeft, AlertCircle } from "lucide-react";
 import AuthLayout from "../_components/AuthLayout";
 import { useTheme } from "@/custom_hook/UseTheme";
+import { api } from "@/api";
 
 const initialData = {
   email: "",
@@ -33,7 +34,7 @@ export default function ForgotPasswordPage() {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrors({});
 
@@ -50,30 +51,46 @@ export default function ForgotPasswordPage() {
 
     setIsLoading(true);
 
-    const savedUsers = localStorage.getItem("interviewflow_users");
-    let usersList = [];
-    if (savedUsers) {
-      usersList = JSON.parse(savedUsers);
-    }
+    try {
+      const response = await api.post("/user/forgot-password", {
+        email: formData.email,
+      });
 
-    let userFound = false;
-    for (let i = 0; i < usersList.length; i++) {
-      if (usersList[i].email.toLowerCase() === formData.email.toLowerCase()) {
-        userFound = true;
-        break;
+      if (response.data && response.data.success) {
+        setIsSubmitted(true);
+        setIsLoading(false);
+        return;
       }
-    }
-
-    if (!userFound) {
-      const authError = {};
-      authError.form = "No account found with this email address.";
-      setErrors(authError);
+    } catch (err) {
       setIsLoading(false);
+      if (err.response && err.response.data && err.response.data.message) {
+        setErrors({ form: err.response.data.message });
+        return;
+      }
+
+      const savedUsers = localStorage.getItem("interviewflow_users");
+      if (savedUsers) {
+        let usersList = [];
+        try {
+          usersList = JSON.parse(savedUsers);
+        } catch (e) {}
+
+        const match = usersList.find(
+          (u) => u.email.toLowerCase() === formData.email.toLowerCase()
+        );
+        if (match) {
+          setIsSubmitted(true);
+          return;
+        }
+      }
+
+      const errorMessage =
+        err.code === "ERR_NETWORK"
+          ? "Unable to connect to backend server (http://localhost:5000). Please ensure backend is running."
+          : err.message || "No account found with this email address.";
+      setErrors({ form: errorMessage });
       return;
     }
-
-    setIsSubmitted(true);
-    setIsLoading(false);
   };
 
   return (

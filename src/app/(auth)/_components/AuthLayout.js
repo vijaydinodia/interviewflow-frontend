@@ -6,9 +6,6 @@ import Header from "@/components/Header";
 import { Monitor, Settings, Video, Shield, BarChart3, Users2, Search, LayoutDashboard, Users, Bell, FileText, HelpCircle, PhoneOff, Mic, ChevronDown } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FEATURE CHIP
-// ─────────────────────────────────────────────────────────────────────────────
 function Chip({ icon, label, isDark }) {
   return (
     <div
@@ -32,9 +29,6 @@ function Chip({ icon, label, isDark }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GAUGE
-// ─────────────────────────────────────────────────────────────────────────────
 function Gauge({ value = 68, isDark }) {
   const r = 18;
   const circ = 2 * Math.PI * r;
@@ -63,9 +57,6 @@ function Gauge({ value = 68, isDark }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DASHBOARD MOCKUP
-// ─────────────────────────────────────────────────────────────────────────────
 function DashboardMockup({ isDark }) {
   const codeLines = [
     { n: 1,  text: "import { scale, device } from 'keep';", c: "#89b4fa" },
@@ -380,9 +371,6 @@ function DashboardMockup({ isDark }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SPLASH CURSOR EFFECT
-// ─────────────────────────────────────────────────────────────────────────────
 function SplashCursor() {
   useEffect(() => {
     const canvas = document.getElementById("splash-cursor-canvas");
@@ -518,9 +506,6 @@ function SplashCursor() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AUTH LAYOUT
-// ─────────────────────────────────────────────────────────────────────────────
 export default function AuthLayout({ children }) {
   const { isDark } = useTheme();
 

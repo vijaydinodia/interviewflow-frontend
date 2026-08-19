@@ -3,17 +3,11 @@
 import React, { useEffect, useRef, useState } from "react";
 
 interface CursorGlowProps {
-  /** Size of the glow sphere in pixels. Default: 500 */
   size?: number;
-  /** Blur radius in pixels. Default: 140 */
   blur?: number;
-  /** Opacity of the glow (0.15 to 0.25 recommended). Default: 0.2 */
   opacity?: number;
-  /** Interpolation factor for smooth trailing (0.01 to 0.1). Default: 0.08 */
   ease?: number;
-  /** Primary purple color (#7C3AED). Default: "#7C3AED" */
   colorFrom?: string;
-  /** Secondary purple color (#A855F7). Default: "#A855F7" */
   colorTo?: string;
 }
 

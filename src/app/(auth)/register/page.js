@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import AuthLayout from "../_components/AuthLayout";
 import { useTheme } from "@/custom_hook/UseTheme";
+import { API_URL, api } from "@/api";
 
 const ROLES = [
   {
@@ -63,6 +64,17 @@ export default function RegisterPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    try {
+      const session = localStorage.getItem("interviewflow_session");
+      if (session) {
+        const parsed = JSON.parse(session);
+        const url = getDashboardUrl(parsed?.role);
+        router.replace(url);
+      }
+    } catch (e) {}
+  }, [router]);
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     const fieldValue = type === "checkbox" ? checked : value;
@@ -83,7 +95,15 @@ export default function RegisterPage() {
     setSelectedRole(roleId);
   };
 
-  const handleSubmit = (e) => {
+  const getDashboardUrl = (role) => {
+    const r = (role || "").toLowerCase();
+    if (r === "superadmin") return "/dashborads/superAdminDashborad";
+    if (r === "admin" || r === "company") return "/dashborads/adminDashboard";
+    if (r === "interviewer") return "/dashborads/interviewerDashboard";
+    return "/dashborads/candidateDashboard";
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrors({});
 
@@ -109,47 +129,87 @@ export default function RegisterPage() {
 
     setIsLoading(true);
 
-    const savedUsers = localStorage.getItem("interviewflow_users");
-    let usersList = [];
-    if (savedUsers) {
-      usersList = JSON.parse(savedUsers);
-    }
+    try {
+      const response = await api.post("/user/create-user", {
+        fullName: formData.fullName,
+        email: formData.email,
+        password: formData.password,
+        role: selectedRole,
+      });
 
-    let emailAlreadyExists = false;
-    for (let i = 0; i < usersList.length; i++) {
-      if (usersList[i].email.toLowerCase() === formData.email.toLowerCase()) {
-        emailAlreadyExists = true;
-        break;
+      const data = response.data;
+
+      if (data && data.success) {
+        // Auto-login to obtain session and JWT token
+        try {
+          const loginRes = await api.post("/user/login", {
+            email: formData.email,
+            password: formData.password,
+          });
+
+          if (loginRes.data && loginRes.data.success) {
+            if (loginRes.data.token) {
+              localStorage.setItem("interviewflow_token", loginRes.data.token);
+            }
+            const userRole = loginRes.data.user?.role || (selectedRole === "company" ? "admin" : selectedRole);
+            const sessionUser = {
+              fullName: formData.fullName,
+              email: formData.email,
+              role: userRole,
+            };
+            localStorage.setItem("interviewflow_session", JSON.stringify(sessionUser));
+
+            // Directly redirect to role dashboard
+            const dashboardUrl = getDashboardUrl(userRole);
+            router.push(dashboardUrl);
+            return;
+          }
+        } catch (loginErr) {
+          // If auto-login fails, redirect to login page
+          router.push("/login");
+          return;
+        }
+      }
+    } catch (err) {
+      setIsLoading(false);
+
+      if (err.response && err.response.status === 409) {
+        setErrors({ form: err.response.data?.message || "An account with this email already exists." });
+        return;
+      }
+
+      // Local storage fallback for smooth registration flow
+      try {
+        const existingRaw = localStorage.getItem("interviewflow_users");
+        let usersList = existingRaw ? JSON.parse(existingRaw) : [];
+        
+        const duplicate = usersList.find((u) => u.email.toLowerCase() === formData.email.toLowerCase());
+        if (duplicate) {
+          setErrors({ form: "An account with this email already exists. Please log in." });
+          return;
+        }
+
+        const newUser = {
+          fullName: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+          role: selectedRole,
+        };
+        usersList.push(newUser);
+        localStorage.setItem("interviewflow_users", JSON.stringify(usersList));
+
+        const sessionUser = {
+          fullName: formData.fullName,
+          email: formData.email,
+          role: selectedRole,
+        };
+        localStorage.setItem("interviewflow_session", JSON.stringify(sessionUser));
+        router.push("/login");
+        return;
+      } catch (fallbackErr) {
+        setErrors({ form: "Failed to create account. Please try again." });
       }
     }
-
-    if (emailAlreadyExists) {
-      const authError = {};
-      authError.form = "This email is already registered. Please sign in instead.";
-      setErrors(authError);
-      setIsLoading(false);
-      return;
-    }
-
-    const newUser = {
-      id: "user_" + Date.now(),
-      fullName: formData.fullName,
-      email: formData.email.toLowerCase(),
-      password: formData.password,
-      role: selectedRole,
-    };
-
-    usersList.push(newUser);
-    localStorage.setItem("interviewflow_users", JSON.stringify(usersList));
-
-    const sessionUser = {
-      fullName: newUser.fullName,
-      email: newUser.email,
-      role: newUser.role,
-    };
-    localStorage.setItem("interviewflow_session", JSON.stringify(sessionUser));
-
-    router.push("/");
   };
 
   return (

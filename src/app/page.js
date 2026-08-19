@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Link from "next/link";
@@ -262,6 +263,35 @@ const TESTIMONIALS = [
 ];
 
 export default function Home() {
+  const router = useRouter();
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    try {
+      const session = localStorage.getItem("interviewflow_session");
+      if (session) {
+        const parsed = JSON.parse(session);
+        const role = (parsed?.role || "").toLowerCase();
+        if (role === "superadmin") {
+          router.replace("/dashborads/superAdminDashborad");
+          return;
+        } else if (role === "admin" || role === "company") {
+          router.replace("/dashborads/adminDashboard");
+          return;
+        } else if (role === "interviewer") {
+          router.replace("/dashborads/interviewerDashboard");
+          return;
+        } else {
+          router.replace("/dashborads/candidateDashboard");
+          return;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+    setCheckingAuth(false);
+  }, [router]);
+
   return (
     <div className="min-h-screen bg-[#0B151E] text-white font-sans flex flex-col selection:bg-cyan-500 selection:text-black relative overflow-x-hidden">
 

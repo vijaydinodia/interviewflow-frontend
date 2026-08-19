@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, User, Home, KeyRound, ChevronDown, Menu, X, Sun, Moon } from "lucide-react";
+import { LogOut, User, Home, KeyRound, ChevronDown, Menu, X, Sun, Moon, LayoutDashboard, UserCheck } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
 
 export default function Header() {
@@ -27,10 +27,21 @@ export default function Header() {
 
   const handleLogout = () => {
     localStorage.removeItem("interviewflow_session");
+    localStorage.removeItem("interviewflow_token");
     sessionStorage.removeItem("interviewflow_session_temp");
     setUser(null);
     router.push("/login");
   };
+
+  const getDashboardUrl = (role) => {
+    const r = (role || "").toLowerCase();
+    if (r === "superadmin") return "/dashborads/superAdminDashborad";
+    if (r === "admin" || r === "company") return "/dashborads/adminDashboard";
+    if (r === "interviewer") return "/dashborads/interviewerDashboard";
+    return "/dashborads/candidateDashboard";
+  };
+
+  const dashboardUrl = user ? getDashboardUrl(user.role) : "/login";
 
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 w-full backdrop-blur-2xl border-b shadow-2xl transition-colors duration-300 ${
@@ -45,7 +56,7 @@ export default function Header() {
       }`} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group">
+        <Link href={user ? dashboardUrl : "/"} className="flex items-center gap-2.5 sm:gap-3 group">
           <div className={`relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full p-[2px] shadow-lg group-hover:scale-105 transition-transform ${
             isDark
               ? "bg-gradient-to-tr from-amber-400 via-sky-400 to-cyan-500 shadow-cyan-500/20"
@@ -64,27 +75,42 @@ export default function Header() {
           </span>
         </Link>
 
+        {/* Desktop Navigation Links */}
         <nav className={`hidden md:flex items-center gap-6 lg:gap-8 text-xs lg:text-sm font-medium ${
           isDark ? "text-slate-300" : "text-slate-700"
         }`}>
-          <Link href="/" className={isDark ? "hover:text-cyan-400 transition-colors" : "hover:text-indigo-600 transition-colors"}>
-            Home
-          </Link>
-          <Link href="#features" className={isDark ? "hover:text-cyan-400 transition-colors" : "hover:text-indigo-600 transition-colors"}>
-            Features
-          </Link>
-          <Link href="#solutions" className={`flex items-center gap-1 ${isDark ? "hover:text-cyan-400" : "hover:text-indigo-600"}`}>
-            <span>Solutions</span>
-            <ChevronDown className="w-3.5 h-3.5 opacity-60" />
-          </Link>
-          <Link href="#why" className={isDark ? "hover:text-cyan-400 transition-colors" : "hover:text-indigo-600 transition-colors"}>
-            Why Us
-          </Link>
-          <Link href="#testimonials" className={isDark ? "hover:text-cyan-400 transition-colors" : "hover:text-indigo-600 transition-colors"}>
-            Reviews
-          </Link>
+          {user ? (
+            <>
+              <Link href={dashboardUrl} className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 font-bold hover:bg-cyan-500/20 transition-all`}>
+                <LayoutDashboard className="w-4 h-4" /> Dashboard
+              </Link>
+              <Link href="/profile" className={`flex items-center gap-1.5 ${pathname === "/profile" ? (isDark ? "text-cyan-400 font-bold" : "text-indigo-600 font-bold") : (isDark ? "hover:text-cyan-400" : "hover:text-indigo-600")}`}>
+                <User className="w-4 h-4" /> Profile
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/" className={`flex items-center gap-1.5 ${pathname === "/" ? (isDark ? "text-cyan-400 font-bold" : "text-indigo-600 font-bold") : (isDark ? "hover:text-cyan-400" : "hover:text-indigo-600")}`}>
+                <Home className="w-4 h-4" /> Home
+              </Link>
+              <Link href="#features" className={isDark ? "hover:text-cyan-400 transition-colors" : "hover:text-indigo-600 transition-colors"}>
+                Features
+              </Link>
+              <Link href="#solutions" className={`flex items-center gap-1 ${isDark ? "hover:text-cyan-400" : "hover:text-indigo-600"}`}>
+                <span>Solutions</span>
+                <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+              </Link>
+              <Link href="#why" className={isDark ? "hover:text-cyan-400 transition-colors" : "hover:text-indigo-600 transition-colors"}>
+                Why Us
+              </Link>
+              <Link href="#testimonials" className={isDark ? "hover:text-cyan-400 transition-colors" : "hover:text-indigo-600 transition-colors"}>
+                Reviews
+              </Link>
+            </>
+          )}
         </nav>
 
+        {/* Right side controls */}
         <div className="flex items-center gap-2.5 sm:gap-4">
           <button
             onClick={toggleTheme}
@@ -110,13 +136,25 @@ export default function Header() {
 
           {user ? (
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="flex items-center gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-white/5 border border-cyan-500/20 text-xs font-semibold text-slate-200">
+              <Link
+                href="/profile"
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                  pathname === "/profile"
+                    ? isDark
+                      ? "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-sm"
+                      : "bg-indigo-50 border-indigo-300 text-indigo-700"
+                    : isDark
+                    ? "bg-white/5 border-white/10 text-slate-200 hover:border-cyan-400 hover:text-white"
+                    : "bg-slate-50 border-slate-200 text-slate-700 hover:border-indigo-400 hover:text-slate-900"
+                }`}
+              >
                 <User className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span className="truncate max-w-[100px] sm:max-w-none">{user.fullName}</span>
-              </div>
+                <span className="truncate max-w-[120px] sm:max-w-none">{user.fullName || user.email}</span>
+              </Link>
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-bold border border-red-500/20 transition-all"
+                title="Sign Out"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Sign Out</span>
@@ -151,52 +189,35 @@ export default function Header() {
       </div>
 
       {mobileMenuOpen && (
-        <div className="md:hidden bg-[#0B151E]/95 backdrop-blur-2xl border-b border-cyan-500/20 px-6 py-5 flex flex-col gap-4 text-sm font-semibold text-slate-300">
-          <Link
-            href="/"
-            onClick={() => setMobileMenuOpen(false)}
-            className="hover:text-cyan-400 transition-colors py-1"
-          >
-            Home
-          </Link>
-          <Link
-            href="#features"
-            onClick={() => setMobileMenuOpen(false)}
-            className="hover:text-cyan-400 transition-colors py-1"
-          >
-            Features
-          </Link>
-          <Link
-            href="#solutions"
-            onClick={() => setMobileMenuOpen(false)}
-            className="hover:text-cyan-400 transition-colors py-1"
-          >
-            Solutions
-          </Link>
-          <Link
-            href="#why"
-            onClick={() => setMobileMenuOpen(false)}
-            className="hover:text-cyan-400 transition-colors py-1"
-          >
-            Why Us
-          </Link>
-          <Link
-            href="#testimonials"
-            onClick={() => setMobileMenuOpen(false)}
-            className="hover:text-cyan-400 transition-colors py-1"
-          >
-            Reviews
-          </Link>
+        <div className="md:hidden bg-[#0B151E]/95 backdrop-blur-2xl border-b border-cyan-500/20 px-6 py-5 flex flex-col gap-3 text-sm font-semibold text-slate-300">
+          {!user && (
+            <Link
+              href="/"
+              onClick={() => setMobileMenuOpen(false)}
+              className="hover:text-cyan-400 transition-colors py-1 flex items-center gap-2"
+            >
+              <Home className="w-4 h-4 text-cyan-400" /> Home Page
+            </Link>
+          )}
 
-          <button
-            onClick={() => { toggleTheme(); setMobileMenuOpen(false); }}
-            className="flex items-center justify-between py-2 border-t border-white/10 text-xs text-cyan-400 font-bold"
-          >
-            <span>Toggle Theme Mode</span>
-            <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[10px] uppercase font-mono">
-              {isDark ? "🌙 Dark Mode" : "☀️ Light Mode"}
-            </span>
-          </button>
+          {user && (
+            <>
+              <Link
+                href={dashboardUrl}
+                onClick={() => setMobileMenuOpen(false)}
+                className="hover:text-cyan-400 transition-colors py-1 flex items-center gap-2 text-cyan-400 font-bold"
+              >
+                <LayoutDashboard className="w-4 h-4" /> Go to Dashboard
+              </Link>
+              <Link
+                href="/profile"
+                onClick={() => setMobileMenuOpen(false)}
+                className="hover:text-cyan-400 transition-colors py-1 flex items-center gap-2"
+              >
+                <User className="w-4 h-4 text-cyan-400" /> My Profile
+              </Link>
+            </>
+          )}
 
           {!user && (
             <Link
