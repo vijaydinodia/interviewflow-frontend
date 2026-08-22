@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Code2, Terminal, Video, BookOpen, Compass, ShieldCheck,
@@ -13,6 +13,20 @@ export default function Footer() {
   const { isDark } = useTheme();
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    try {
+      const session = localStorage.getItem("interviewflow_session");
+      if (session) {
+        setIsLoggedIn(true);
+      }
+    } catch (e) {}
+  }, []);
+
+  if (isLoggedIn) {
+    return null;
+  }
 
   const handleSubscribe = (e) => {
     e.preventDefault();

@@ -14,6 +14,7 @@ import {
 import { useTheme } from "@/custom_hook/UseTheme";
 import DashboardHeader from "../_components/DashboardHeader";
 import ReportBugTab from "@/components/ReportBugTab";
+import LoginSessionsTab from "@/components/LoginSessionsTab";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -23,6 +24,7 @@ const SIDEBAR_TABS = [
   { id: "candidates",   label: "Candidates",   icon: Briefcase },
   { id: "all_users",    label: "All Users",    icon: Users },
   { id: "bugs",         label: "Bug Reports & Issues", icon: Bug },
+  { id: "sessions",     label: "Login Sessions & Audit", icon: ShieldCheck },
 ];
 
 export default function SuperAdminDashboard() {
@@ -433,6 +435,8 @@ export default function SuperAdminDashboard() {
 
           {activeSection === "bugs" ? (
             <ReportBugTab user={user} isAdmin={true} />
+          ) : activeSection === "sessions" ? (
+            <LoginSessionsTab user={user} isAdmin={true} />
           ) : (
             <div className="space-y-6">
 

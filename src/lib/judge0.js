@@ -3,10 +3,10 @@
  * Endpoint: https://ce.judge0.com (no API key required)
  */
 
-// Language IDs valid on ce.judge0.com
+// Language IDs valid on ce.judge0.com (Supports 25+ programming languages)
 export const JUDGE0_LANGUAGES = {
   javascript: {
-    id: 63, // Node.js 12.14.0
+    id: 63,
     name: "JavaScript (Node.js)",
     monacoLanguage: "javascript",
     fileExtension: "js",
@@ -14,7 +14,6 @@ export const JUDGE0_LANGUAGES = {
 function solve() {
   console.log("Hello from InterviewFlow Code Runner!");
 
-  // Example: Sum array
   const arr = [10, 20, 30, 40, 50];
   const sum = arr.reduce((acc, num) => acc + num, 0);
   console.log("Array Sum:", sum);
@@ -24,7 +23,7 @@ solve();
 `,
   },
   typescript: {
-    id: 74, // TypeScript 3.7.4
+    id: 74,
     name: "TypeScript",
     monacoLanguage: "typescript",
     fileExtension: "ts",
@@ -49,7 +48,7 @@ console.log(evaluateCandidate(cand));
 `,
   },
   python: {
-    id: 71, // Python 3.8.1
+    id: 71,
     name: "Python 3",
     monacoLanguage: "python",
     fileExtension: "py",
@@ -70,7 +69,7 @@ if __name__ == "__main__":
 `,
   },
   java: {
-    id: 62, // Java OpenJDK 13.0.1
+    id: 62,
     name: "Java",
     monacoLanguage: "java",
     fileExtension: "java",
@@ -90,7 +89,7 @@ public class Main {
 `,
   },
   cpp: {
-    id: 54, // C++ GCC 9.2.0
+    id: 54,
     name: "C++ (GCC)",
     monacoLanguage: "cpp",
     fileExtension: "cpp",
@@ -111,7 +110,7 @@ int main() {
 `,
   },
   c: {
-    id: 50, // C GCC 9.2.0
+    id: 50,
     name: "C (GCC)",
     monacoLanguage: "c",
     fileExtension: "c",
@@ -127,8 +126,23 @@ int main() {
 }
 `,
   },
+  csharp: {
+    id: 51,
+    name: "C# (.NET Core)",
+    monacoLanguage: "csharp",
+    fileExtension: "cs",
+    defaultCode: `// C# Playground
+using System;
+
+public class Program {
+    public static void Main() {
+        Console.WriteLine("Hello from C# .NET Engine!");
+    }
+}
+`,
+  },
   go: {
-    id: 60, // Go 1.13.5
+    id: 60,
     name: "Go (Golang)",
     monacoLanguage: "go",
     fileExtension: "go",
@@ -147,7 +161,7 @@ func main() {
 `,
   },
   rust: {
-    id: 73, // Rust 1.40.0
+    id: 73,
     name: "Rust",
     monacoLanguage: "rust",
     fileExtension: "rs",
@@ -158,6 +172,211 @@ fn main() {
     let sum: i32 = numbers.iter().sum();
     println!("Sum of numbers: {}", sum);
 }
+`,
+  },
+  php: {
+    id: 68,
+    name: "PHP",
+    monacoLanguage: "php",
+    fileExtension: "php",
+    defaultCode: `<?php
+// PHP Playground
+echo "PHP Backend Execution Engine Active!\\n";
+$frameworks = ["Laravel", "Symfony", "WordPress"];
+echo "Popular Frameworks: " . implode(", ", $frameworks) . "\\n";
+`,
+  },
+  ruby: {
+    id: 72,
+    name: "Ruby",
+    monacoLanguage: "ruby",
+    fileExtension: "rb",
+    defaultCode: `# Ruby Playground
+puts "Hello from Ruby on Rails Engine!"
+languages = ["Ruby", "Python", "JavaScript"]
+languages.each_with_index do |lang, idx|
+  puts "#{idx + 1}. #{lang}"
+end
+`,
+  },
+  swift: {
+    id: 83,
+    name: "Swift",
+    monacoLanguage: "swift",
+    fileExtension: "swift",
+    defaultCode: `// Swift (iOS) Playground
+import Foundation
+
+print("Swift 5.10 Execution Ready!")
+let frameworks = ["SwiftUI", "UIKit", "Combine"]
+for fw in frameworks {
+    print("-> Framework: \\(fw)")
+}
+`,
+  },
+  kotlin: {
+    id: 78,
+    name: "Kotlin",
+    monacoLanguage: "kotlin",
+    fileExtension: "kt",
+    defaultCode: `// Kotlin Playground
+fun main() {
+    println("Kotlin Android / JVM Engine Online!")
+    val items = listOf("Coroutines", "Flow", "Jetpack Compose")
+    items.forEach { println("-> $it") }
+}
+`,
+  },
+  dart: {
+    id: 74,
+    name: "Dart (Flutter)",
+    monacoLanguage: "dart",
+    fileExtension: "dart",
+    defaultCode: `// Dart / Flutter Playground
+void main() {
+  print("Dart Multi-Platform Engine Online!");
+}
+`,
+  },
+  sql: {
+    id: 82,
+    name: "SQL",
+    monacoLanguage: "sql",
+    fileExtension: "sql",
+    defaultCode: `-- SQL Query Playground
+SELECT 
+    user_id, 
+    email, 
+    role, 
+    createdAt 
+FROM users 
+WHERE isActive = 1 
+ORDER BY createdAt DESC;
+`,
+  },
+  scala: {
+    id: 81,
+    name: "Scala",
+    monacoLanguage: "scala",
+    fileExtension: "scala",
+    defaultCode: `// Scala Playground
+object Main extends App {
+  println("Scala 3 Functional Engine Online!")
+}
+`,
+  },
+  r: {
+    id: 80,
+    name: "R Language",
+    monacoLanguage: "r",
+    fileExtension: "r",
+    defaultCode: `# R Language Playground
+cat("R Data Science Engine Active!\\n")
+numbers <- c(12, 34, 56, 78, 90)
+cat("Mean:", mean(numbers), "\\n")
+`,
+  },
+  elixir: {
+    id: 57,
+    name: "Elixir",
+    monacoLanguage: "elixir",
+    fileExtension: "ex",
+    defaultCode: `# Elixir / Erlang VM Playground
+IO.puts "Elixir Concurrent Engine Online!"
+`,
+  },
+  haskell: {
+    id: 61,
+    name: "Haskell",
+    monacoLanguage: "haskell",
+    fileExtension: "hs",
+    defaultCode: `-- Haskell Pure Functional Playground
+main :: IO ()
+main = putStrLn "Hello from Haskell!"
+`,
+  },
+  bash: {
+    id: 46,
+    name: "Bash / Shell",
+    monacoLanguage: "shell",
+    fileExtension: "sh",
+    defaultCode: `#!/bin/bash
+# Bash Shell Scripting Playground
+echo "Shell Script Execution Active!"
+uname -a
+`,
+  },
+  perl: {
+    id: 70,
+    name: "Perl",
+    monacoLanguage: "perl",
+    fileExtension: "pl",
+    defaultCode: `#!/usr/bin/env perl
+# Perl Playground
+print "Perl Engine Active!\\n";
+`,
+  },
+  lua: {
+    id: 64,
+    name: "Lua",
+    monacoLanguage: "lua",
+    fileExtension: "lua",
+    defaultCode: `-- Lua Scripting Playground
+print("Lua Scripting Engine Online!")
+`,
+  },
+  asm: {
+    id: 45,
+    name: "Assembly (x86_64)",
+    monacoLanguage: "assembly",
+    fileExtension: "asm",
+    defaultCode: `; Assembly x86_64 Playground
+global _start
+
+section .text
+_start:
+    mov rax, 1          ; write syscall
+    mov rdi, 1          ; stdout
+    mov rsi, msg
+    mov rdx, 14
+    syscall
+    mov rax, 60         ; exit syscall
+    xor rdi, rdi
+    syscall
+
+section .data
+msg db "Assembly Active", 10
+`,
+  },
+  clojure: {
+    id: 86,
+    name: "Clojure",
+    monacoLanguage: "clojure",
+    fileExtension: "clj",
+    defaultCode: `; Clojure Lisp Playground
+(println "Clojure Lisp Engine Online!")
+`,
+  },
+  erlang: {
+    id: 58,
+    name: "Erlang",
+    monacoLanguage: "erlang",
+    fileExtension: "erl",
+    defaultCode: `% Erlang Playground
+-module(main).
+-export([start/0]).
+
+start() ->
+    io:format("Erlang Actor Engine Active!~n").
+`,
+  },
+  julia: {
+    id: 87,
+    name: "Julia",
+    monacoLanguage: "julia",
+    fileExtension: "jl",
+    defaultCode: `# Julia High-Performance Scientific Computing
+println("Julia Scientific Engine Online!")
 `,
   },
 };
@@ -200,65 +419,57 @@ export async function executeCode({ sourceCode, language, stdin = "" }) {
   }
 
   const payload = {
-    source_code:    encodeBase64(sourceCode),
-    language_id:    langConfig.id,
-    stdin:          stdin ? encodeBase64(stdin) : "",
-    cpu_time_limit: 5,
-    memory_limit:   128000,
+    language_id:          langConfig.id,
+    source_code:          encodeBase64(sourceCode),
+    stdin:                encodeBase64(stdin),
+    cpu_time_limit:       5,
+    memory_limit:         128000,
+    redirect_stderr_to_stdout: false,
   };
 
-  const submitUrl = `${judge0Url}/submissions?base64_encoded=true&wait=true`;
+  try {
+    const submitRes = await fetch(`${judge0Url}/submissions?base64_encoded=true&wait=true`, {
+      method:  "POST",
+      headers,
+      body:    JSON.stringify(payload),
+    });
 
-  const response = await fetch(submitUrl, {
-    method:  "POST",
-    headers,
-    body:    JSON.stringify(payload),
-    signal:  AbortSignal.timeout(15000),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Execution engine error (${response.status}): ${errorText || response.statusText}`);
-  }
-
-  const data = await response.json();
-
-  // Poll if still in queue
-  let finalResult = data;
-  if (data.token && data.status && data.status.id <= 2) {
-    finalResult = await pollSubmission(data.token, headers, judge0Url);
-  }
-
-  const stdout        = decodeBase64(finalResult.stdout);
-  const stderr        = decodeBase64(finalResult.stderr);
-  const compileOutput = decodeBase64(finalResult.compile_output);
-  const message       = decodeBase64(finalResult.message);
-
-  return {
-    success:        true,
-    token:          finalResult.token,
-    status:         finalResult.status || { id: 3, description: "Accepted" },
-    stdout:         stdout         || "",
-    stderr:         stderr         || "",
-    compile_output: compileOutput  || "",
-    message:        message        || "",
-    time:   finalResult.time   ? `${parseFloat(finalResult.time).toFixed(3)}s` : "0.000s",
-    memory: finalResult.memory ? `${finalResult.memory} KB`                    : "0 KB",
-  };
-}
-
-/** Poll submission token until status id > 2 (out of queue) */
-async function pollSubmission(token, headers, baseUrl, maxAttempts = 8) {
-  const checkUrl = `${baseUrl}/submissions/${token}?base64_encoded=true`;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    const res = await fetch(checkUrl, { headers });
-    if (res.ok) {
-      const result = await res.json();
-      if (result.status && result.status.id > 2) return result;
+    if (!submitRes.ok) {
+      const errText = await submitRes.text();
+      throw new Error(`Judge0 API error [${submitRes.status}]: ${errText}`);
     }
-  }
 
-  throw new Error("Execution timed out waiting for Judge0 response.");
+    const data = await submitRes.json();
+
+    const stdout        = decodeBase64(data.stdout);
+    const stderr        = decodeBase64(data.stderr);
+    const compileOutput = decodeBase64(data.compile_output);
+    const statusDesc    = data.status?.description || "Completed";
+    const statusId      = data.status?.id || 3;
+
+    return {
+      success: statusId === 3,
+      stdout:  stdout || "",
+      stderr:  stderr || "",
+      compileOutput: compileOutput || "",
+      statusDescription: statusDesc,
+      statusId: statusId,
+      time: data.time ? `${data.time}s` : null,
+      memory: data.memory ? `${data.memory} KB` : null,
+      languageUsed: langConfig.name,
+    };
+  } catch (err) {
+    console.error("Judge0 execution failed:", err.message);
+    return {
+      success: false,
+      stdout: "",
+      stderr: err.message || "Execution error",
+      compileOutput: "",
+      statusDescription: "Execution Error",
+      statusId: 11,
+      time: null,
+      memory: null,
+      languageUsed: langConfig.name,
+    };
+  }
 }

@@ -17,6 +17,7 @@ import { useTheme } from "@/custom_hook/UseTheme";
 import DashboardHeader from "../_components/DashboardHeader";
 import ProblemSolvingTab from "@/components/ProblemSolvingTab";
 import ReportBugTab from "@/components/ReportBugTab";
+import LoginSessionsTab from "@/components/LoginSessionsTab";
 
 const CodeEditorWithRunner = dynamic(
   () => import("@/components/CodeEditorWithRunner"),
@@ -51,13 +52,31 @@ const ROLE_OPTIONS = [
 ];
 
 const LANGUAGE_OPTIONS = [
-  { id: "javascript", label: "JavaScript", icon: "🟨", version: "ES2024 / Node 20" },
-  { id: "typescript", label: "TypeScript", icon: "🔷", version: "TS 5.4" },
-  { id: "python",     label: "Python",     icon: "🐍", version: "Python 3.11" },
-  { id: "java",       label: "Java",       icon: "☕", version: "OpenJDK 17" },
-  { id: "cpp",        label: "C++",        icon: "⚡", version: "GCC 12 / C++20" },
-  { id: "go",         label: "Go (Golang)", icon: "🔵", version: "Go 1.22" },
-  { id: "sql",        label: "SQL",        icon: "🗄️", version: "MySQL 8.0" },
+  { id: "javascript", label: "JavaScript",        icon: "🟨", version: "ES2024 / Node 20" },
+  { id: "typescript", label: "TypeScript",        icon: "🔷", version: "TS 5.4" },
+  { id: "python",     label: "Python",            icon: "🐍", version: "Python 3.12" },
+  { id: "java",       label: "Java",              icon: "☕", version: "OpenJDK 21" },
+  { id: "cpp",        label: "C++",               icon: "⚡", version: "GCC 13 / C++23" },
+  { id: "csharp",     label: "C# (.NET Core)",    icon: "💜", version: ".NET 8.0" },
+  { id: "go",         label: "Go (Golang)",       icon: "🔵", version: "Go 1.22" },
+  { id: "rust",       label: "Rust",              icon: "🦀", version: "Rust 1.77" },
+  { id: "php",        label: "PHP",               icon: "🐘", version: "PHP 8.3" },
+  { id: "ruby",       label: "Ruby",              icon: "💎", version: "Ruby 3.3" },
+  { id: "swift",      label: "Swift (iOS)",       icon: "🍊", version: "Swift 5.10" },
+  { id: "kotlin",     label: "Kotlin (Android)",  icon: "🎯", version: "Kotlin 1.9" },
+  { id: "dart",       label: "Dart (Flutter)",    icon: "🎯", version: "Dart 3.3" },
+  { id: "sql",        label: "SQL",               icon: "🗄️", version: "MySQL 8.0 / Postgres" },
+  { id: "scala",      label: "Scala",             icon: "🔴", version: "Scala 3.4" },
+  { id: "r",          label: "R Language",        icon: "📊", version: "R 4.3" },
+  { id: "elixir",     label: "Elixir",            icon: "💧", version: "Elixir 1.16" },
+  { id: "haskell",    label: "Haskell",           icon: "🔮", version: "GHC 9.6" },
+  { id: "bash",       label: "Bash / Shell",      icon: "🐚", version: "GNU Bash 5.2" },
+  { id: "perl",       label: "Perl",              icon: "🐪", version: "Perl 5.38" },
+  { id: "lua",        label: "Lua",               icon: "🌙", version: "Lua 5.4" },
+  { id: "asm",        label: "Assembly (x86_64)", icon: "⚙️", version: "NASM 2.16" },
+  { id: "clojure",    label: "Clojure",           icon: "🌀", version: "Clojure 1.11" },
+  { id: "erlang",     label: "Erlang",            icon: "🔴", version: "OTP 26" },
+  { id: "julia",      label: "Julia",             icon: "🔬", version: "Julia 1.10" },
 ];
 
 const TOPIC_OPTIONS = [
@@ -192,6 +211,7 @@ const SIDEBAR_ITEMS = [
   { id: "flowcode",     label: "FlowCode Playground",        icon: Code2,           badge: null },
   { id: "readiness",    label: "Profile & Readiness",        icon: ShieldCheck,     badge: "pct" },
   { id: "bugs",         label: "Report Bug / Issues",        icon: Bug,             badge: null },
+  { id: "sessions",     label: "Login Sessions & Security",  icon: Laptop,          badge: null },
 ];
 
 const TABS = SIDEBAR_ITEMS;
@@ -310,7 +330,8 @@ export default function CandidateDashboard() {
       });
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        setMatchingInterviewers(json.data);
+        const approvedOnly = json.data.filter((inv) => inv.isVerified === true || inv.isVerified === 1 || inv.isVerified === "1");
+        setMatchingInterviewers(approvedOnly);
       } else {
         setMatchingInterviewers([]);
       }
@@ -1958,6 +1979,9 @@ export default function CandidateDashboard() {
 
               {/* ══════════════ TAB 8: REPORT BUG / ISSUES ══════════════ */}
               {activeTab === "bugs" && <ReportBugTab user={user} isAdmin={false} />}
+
+              {/* ══════════════ TAB 9: LOGIN SESSIONS & SECURITY ══════════════ */}
+              {activeTab === "sessions" && <LoginSessionsTab user={user} isAdmin={false} />}
             </>
           )}
         </main>

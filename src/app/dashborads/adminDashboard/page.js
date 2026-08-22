@@ -11,6 +11,7 @@ import {
 import { useTheme } from "@/custom_hook/UseTheme";
 import DashboardHeader from "../_components/DashboardHeader";
 import ReportBugTab from "@/components/ReportBugTab";
+import LoginSessionsTab from "@/components/LoginSessionsTab";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -241,6 +242,16 @@ export default function AdminDashboard() {
             >
               <Bug className="h-3.5 w-3.5" /> Report Bug / Issues
             </button>
+            <button
+              onClick={() => setActiveTab("sessions")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                activeTab === "sessions"
+                  ? "bg-purple-500 text-white border-purple-500 shadow-md"
+                  : isDark ? "bg-white/5 border-white/10 text-slate-300 hover:text-white" : "bg-slate-100 border-slate-300 text-slate-700"
+              }`}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" /> Login Sessions
+            </button>
           </div>
         </div>
 
@@ -455,6 +466,11 @@ export default function AdminDashboard() {
             {/* ── BUGS TAB ── */}
             {activeTab === "bugs" && (
               <ReportBugTab user={user} isAdmin={false} />
+            )}
+
+            {/* ── SESSIONS TAB ── */}
+            {activeTab === "sessions" && (
+              <LoginSessionsTab user={user} isAdmin={false} />
             )}
           </div>
         )}

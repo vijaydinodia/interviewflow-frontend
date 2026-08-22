@@ -12,6 +12,7 @@ import {
 import { useTheme } from "@/custom_hook/UseTheme";
 import DashboardHeader from "../_components/DashboardHeader";
 import ReportBugTab from "@/components/ReportBugTab";
+import LoginSessionsTab from "@/components/LoginSessionsTab";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -20,6 +21,7 @@ const SIDEBAR_ITEMS = [
   { id: "availability", label: "Schedule & Slots",      icon: Calendar,       badge: null },
   { id: "profile",      label: "My Specializations",    icon: Code2,          badge: null },
   { id: "bugs",         label: "Report Bug / Issues",   icon: Bug,            badge: null },
+  { id: "sessions",     label: "Login Sessions & Security", icon: Laptop,     badge: null },
 ];
 
 export default function InterviewerDashboard() {
@@ -984,6 +986,9 @@ export default function InterviewerDashboard() {
 
           {/* ══════════════ TAB 5: REPORT BUG / ISSUES ══════════════ */}
           {activeTab === "bugs" && <ReportBugTab user={user} isAdmin={false} />}
+
+          {/* ══════════════ TAB 6: LOGIN SESSIONS & SECURITY ══════════════ */}
+          {activeTab === "sessions" && <LoginSessionsTab user={user} isAdmin={false} />}
         </main>
       </div>
 

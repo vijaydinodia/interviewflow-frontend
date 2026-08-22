@@ -50,18 +50,30 @@ const ROLES = [
 ];
 
 const SPECIALIZATION_PRESETS = [
-  "System Design",
-  "DSA & Algorithms",
-  "React & Next.js",
-  "Node.js & Express",
-  "Python & Django",
+  "DSA & Core Algorithms",
+  "System Design & Architecture",
+  "JavaScript & ES2024",
+  "TypeScript & Type Safety",
+  "Python & Django / FastAPI",
   "Java & Spring Boot",
-  "Go / Golang",
-  "Microservices",
-  "AWS & Cloud",
-  "Kubernetes & Docker",
-  "SQL & Database Tuning",
-  "Machine Learning & AI",
+  "C++ & Competitive Programming",
+  "React.js & Next.js",
+  "Node.js, Express & NestJS",
+  "Go / Golang Systems",
+  "Rust & Systems Engineering",
+  "C# & .NET Core Architecture",
+  "PHP & Laravel Backend",
+  "Ruby on Rails",
+  "Swift & iOS App Engineering",
+  "Kotlin & Android Development",
+  "Flutter & Dart Cross-Platform",
+  "SQL, MySQL & PostgreSQL",
+  "MongoDB, Redis & NoSQL",
+  "Microservices & gRPC APIs",
+  "AWS, GCP & Azure Cloud",
+  "Kubernetes, Docker & DevOps",
+  "Machine Learning, AI & LLMs",
+  "Data Engineering & Kafka",
 ];
 
 const AVAILABILITY_PRESETS = [
@@ -98,6 +110,21 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState({});
   const [showPwd, setShowPwd] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const [customDays, setCustomDays] = useState("Mon-Fri");
+  const [customSlotStart, setCustomSlotStart] = useState("06:00 PM");
+  const [customSlotEnd, setCustomSlotEnd] = useState("07:00 PM");
+
+  const handleAddCustomSlot = () => {
+    if (!customDays || !customSlotStart || !customSlotEnd) return;
+    const newSlotStr = `${customDays.trim()} ${customSlotStart.trim()} - ${customSlotEnd.trim()}`;
+    if (!formData.availability.includes(newSlotStr)) {
+      setFormData((prev) => ({
+        ...prev,
+        availability: [...prev.availability, newSlotStr],
+      }));
+    }
+  };
 
   useEffect(() => {
     try {
@@ -552,30 +579,81 @@ export default function RegisterPage() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {AVAILABILITY_PRESETS.map((slot) => {
-                      const isSelected = formData.availability.includes(slot);
+                    {formData.availability.map((slot) => {
+                      const isPreset = AVAILABILITY_PRESETS.includes(slot);
                       return (
                         <button
                           key={slot}
                           type="button"
                           onClick={() => toggleAvailabilitySlot(slot)}
-                          className={`p-3.5 rounded-2xl text-xs font-mono font-bold text-left transition-all flex items-center justify-between border ${
-                            isSelected
-                              ? "bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-md shadow-emerald-500/20"
-                              : "bg-[#080E18] border-white/10 text-slate-400 hover:border-white/20 hover:text-white"
-                          }`}
+                          className="p-3.5 rounded-2xl text-xs font-mono font-bold text-left transition-all flex items-center justify-between border bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-md shadow-emerald-500/20"
                         >
                           <span>🕒 {slot}</span>
-                          {isSelected ? (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-400 text-black font-black">
-                              Active ✓
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-400">+ Add</span>
-                          )}
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-400 text-black font-black flex items-center gap-1">
+                            Active ✓
+                          </span>
                         </button>
                       );
                     })}
+                    {AVAILABILITY_PRESETS.filter((s) => !formData.availability.includes(s)).map((slot) => {
+                      return (
+                        <button
+                          key={slot}
+                          type="button"
+                          onClick={() => toggleAvailabilitySlot(slot)}
+                          className="p-3.5 rounded-2xl text-xs font-mono font-bold text-left transition-all flex items-center justify-between border bg-[#080E18] border-white/10 text-slate-400 hover:border-white/20 hover:text-white"
+                        >
+                          <span>🕒 {slot}</span>
+                          <span className="text-[10px] text-slate-400">+ Add</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* ── CUSTOM AVAILABILITY SLOT CREATOR ── */}
+                  <div className="mt-4 p-4 rounded-2xl border border-emerald-500/30 bg-[#080E18] space-y-3">
+                    <span className="text-xs font-black uppercase text-emerald-400 flex items-center gap-1.5">
+                      <Clock className="h-4 w-4" /> Create Custom Availability Time Slot
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                      <div>
+                        <label className="block text-[10px] text-slate-400 font-bold mb-1">Days / Frequency</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Mon, Wed, Fri"
+                          value={customDays}
+                          onChange={(e) => setCustomDays(e.target.value)}
+                          className="w-full rounded-xl border border-white/10 bg-[#0B151E] p-2.5 text-xs text-white outline-none focus:border-emerald-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 font-bold mb-1">Start Time</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 05:00 PM"
+                          value={customSlotStart}
+                          onChange={(e) => setCustomSlotStart(e.target.value)}
+                          className="w-full rounded-xl border border-white/10 bg-[#0B151E] p-2.5 text-xs text-white outline-none focus:border-emerald-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 font-bold mb-1">End Time</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 06:30 PM"
+                          value={customSlotEnd}
+                          onChange={(e) => setCustomSlotEnd(e.target.value)}
+                          className="w-full rounded-xl border border-white/10 bg-[#0B151E] p-2.5 text-xs text-white outline-none focus:border-emerald-400"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddCustomSlot}
+                      className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Plus className="h-4 w-4" /> + Add Custom Slot to My Schedule
+                    </button>
                   </div>
                   {errors.availability && <p className="text-xs text-red-400 mt-2 font-bold">{errors.availability}</p>}
                 </div>
