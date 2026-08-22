@@ -20,17 +20,22 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [devOtpHint, setDevOtpHint] = useState("");
 
   // ── Step 1: Send OTP to email ───────────────────────────────────────────────
   const handleSendOtp = async (e) => {
     e.preventDefault();
     setError("");
+    setDevOtpHint("");
     if (!email.trim()) { setError("Email address is required."); return; }
 
     setIsLoading(true);
     try {
       const res = await api.post("/user/forgot-password", { email: email.trim() });
       if (res.data?.success) {
+        if (res.data?.devOtp) {
+          setDevOtpHint(res.data.devOtp);
+        }
         setStep("otp");
         startResendCooldown();
       } else {
@@ -310,6 +315,17 @@ export default function ForgotPasswordPage() {
           </p>
 
           <ErrorBanner />
+
+          {devOtpHint && (
+            <div className={`mb-4 p-3 rounded-xl border text-xs font-mono font-bold flex items-center justify-between ${
+              isDark ? "bg-amber-500/10 border-amber-500/30 text-amber-300" : "bg-amber-50 border-amber-200 text-amber-800"
+            }`}>
+              <span>🔑 Development OTP Code:</span>
+              <span className="text-sm font-black text-cyan-400 bg-black/40 px-2 py-0.5 rounded border border-cyan-500/30">
+                {devOtpHint}
+              </span>
+            </div>
+          )}
 
           <form onSubmit={handleVerifyOtp} className="space-y-5">
             {/* OTP digit boxes */}
