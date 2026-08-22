@@ -7,10 +7,13 @@ import {
   AlertCircle, Check, Loader2, RefreshCw, UserCheck, ShieldAlert,
   Search, Users, RotateCcw, UserCog, Briefcase, Menu, X, Eye,
   ExternalLink, Globe, MapPin, Mail, Phone, Calendar, Code2,
-  Award, Clock, FileText, CheckCircle, Tag, Sparkles, Layers
+  Award, Clock, FileText, CheckCircle, Tag, Sparkles, Layers, User,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  ArrowUpDown, ArrowUp, ArrowDown, Bug
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
 import DashboardHeader from "../_components/DashboardHeader";
+import ReportBugTab from "@/components/ReportBugTab";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -19,6 +22,7 @@ const SIDEBAR_TABS = [
   { id: "interviewers", label: "Interviewers", icon: UserCog },
   { id: "candidates",   label: "Candidates",   icon: Briefcase },
   { id: "all_users",    label: "All Users",    icon: Users },
+  { id: "bugs",         label: "Bug Reports & Issues", icon: Bug },
 ];
 
 export default function SuperAdminDashboard() {
@@ -34,14 +38,32 @@ export default function SuperAdminDashboard() {
   const [companies, setCompanies]       = useState([]);
   const [interviewers, setInterviewers] = useState([]);
   const [candidates, setCandidates]     = useState([]);
+  const [bugs, setBugs]                 = useState([]);
 
   const [loading, setLoading]           = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [filterTab, setFilterTab]       = useState("all");
   const [searchTerm, setSearchTerm]     = useState("");
+  const [sortBy, setSortBy]             = useState("createdAt");
+  const [sortOrder, setSortOrder]       = useState("DESC");
+  const [currentPage, setCurrentPage]   = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
   const [confirmModal, setConfirmModal] = useState(null);
   const [detailModal, setDetailModal]   = useState(null);
   const [toast, setToast]               = useState(null);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeSection, filterTab, searchTerm, itemsPerPage, sortBy, sortOrder]);
+
+  const toggleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder((prev) => (prev === "ASC" ? "DESC" : "ASC"));
+    } else {
+      setSortBy(column);
+      setSortOrder("ASC");
+    }
+  };
 
   const showToast = useCallback((type, message) => {
     setToast({ type, message });
@@ -68,8 +90,16 @@ export default function SuperAdminDashboard() {
       if (json.success && Array.isArray(json.data)) {
         splitUsers(json.data);
       }
+
+      const bugRes = await fetch(`${API_BASE}/api/bugs/all`, {
+        headers: { Authorization: `Bearer ${authToken || token}` },
+      });
+      const bugJson = await bugRes.json();
+      if (bugJson.success && Array.isArray(bugJson.data)) {
+        setBugs(bugJson.data);
+      }
     } catch {
-      showToast("error", "Failed to fetch users from backend.");
+      showToast("error", "Failed to fetch dashboard data.");
     } finally {
       setLoading(false);
     }
@@ -142,7 +172,7 @@ export default function SuperAdminDashboard() {
     setActionLoading(null);
     patchAll(item.userId, { isActive: true });
     showToast(json.success ? "success" : "error",
-      json.success ? "Company approved!" : json.message || "Failed.");
+      json.success ? "Company approved & active!" : json.message || "Failed.");
   };
 
   const handleReject = async (item) => {
@@ -151,7 +181,31 @@ export default function SuperAdminDashboard() {
     setActionLoading(null);
     patchAll(item.userId, { isActive: false });
     showToast(json.success ? "success" : "error",
-      json.success ? "Company rejected." : json.message || "Failed.");
+      json.success ? "Company marked inactive / pending." : json.message || "Failed.");
+  };
+
+  const handleApproveInterviewer = async (item) => {
+    setActionLoading(item.userId);
+    const json = await doFetch(`${API_BASE}/super-admin/interviewers/${item.userId}/approve`, "PUT", token);
+    setActionLoading(null);
+    patchAll(item.userId, { 
+      isActive: true, 
+      interviewerProfile: { ...(item.interviewerProfile || {}), isVerified: true } 
+    });
+    showToast(json.success ? "success" : "error",
+      json.success ? `Interviewer "${item.email}" verified & active!` : json.message || "Failed.");
+  };
+
+  const handleRejectInterviewer = async (item) => {
+    setActionLoading(item.userId);
+    const json = await doFetch(`${API_BASE}/super-admin/interviewers/${item.userId}/reject`, "PUT", token);
+    setActionLoading(null);
+    patchAll(item.userId, { 
+      isActive: false, 
+      interviewerProfile: { ...(item.interviewerProfile || {}), isVerified: false } 
+    });
+    showToast(json.success ? "success" : "error",
+      json.success ? `Interviewer "${item.email}" marked pending / unverified.` : json.message || "Failed.");
   };
 
   if (!user) return null;
@@ -161,13 +215,23 @@ export default function SuperAdminDashboard() {
     activeSection === "interviewers" ? interviewers :
     activeSection === "candidates"   ? candidates : allUsers;
 
+  const isVerifiedAccount = (x) => {
+    if (x.role === "interviewer") {
+      return x.interviewerProfile?.isVerified === true && x.isActive !== false;
+    }
+    return x.isActive !== false;
+  };
+
   const totalCount    = rawList.length;
-  const activeCount   = rawList.filter((x) => x.isActive !== false).length;
+  const activeCount   = rawList.filter((x) => isVerifiedAccount(x)).length;
+  const pendingCount  = rawList.filter((x) => !isVerifiedAccount(x)).length;
   const inactiveCount = rawList.filter((x) => x.isActive === false).length;
 
   const filtered = rawList.filter((item) => {
+    const isApproved = isVerifiedAccount(item);
     const byTab =
-      filterTab === "active"   ? item.isActive !== false :
+      filterTab === "active"   ? isApproved :
+      filterTab === "pending"  ? !isApproved :
       filterTab === "inactive" ? item.isActive === false : true;
     const s = searchTerm.toLowerCase();
     const cName = item.companyProfile?.companyName || item.profile?.company || "";
@@ -176,7 +240,40 @@ export default function SuperAdminDashboard() {
     return byTab && (name.includes(s) || email.includes(s) || cName.toLowerCase().includes(s));
   });
 
+  const sorted = [...filtered].sort((a, b) => {
+    let valA, valB;
+    if (sortBy === "name") {
+      valA = (a.companyProfile?.companyName || (a.firstName ? `${a.firstName} ${a.lastName || ""}` : null) || a.fullName || a.username || a.email || "").toLowerCase();
+      valB = (b.companyProfile?.companyName || (b.firstName ? `${b.firstName} ${b.lastName || ""}` : null) || b.fullName || b.username || b.email || "").toLowerCase();
+    } else if (sortBy === "email") {
+      valA = (a.email || "").toLowerCase();
+      valB = (b.email || "").toLowerCase();
+    } else if (sortBy === "role") {
+      valA = (a.role || "").toLowerCase();
+      valB = (b.role || "").toLowerCase();
+    } else if (sortBy === "status") {
+      valA = isVerifiedAccount(a) ? 1 : 0;
+      valB = isVerifiedAccount(b) ? 1 : 0;
+    } else {
+      // createdAt
+      valA = new Date(a.createdAt || 0).getTime();
+      valB = new Date(b.createdAt || 0).getTime();
+    }
+
+    if (valA < valB) return sortOrder === "ASC" ? -1 : 1;
+    if (valA > valB) return sortOrder === "ASC" ? 1 : -1;
+    return 0;
+  });
+
+  const totalFiltered = sorted.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / itemsPerPage));
+  const validPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (validPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalFiltered);
+  const paginatedItems = sorted.slice(startIndex, endIndex);
+
   const isCompanySection = activeSection === "companies";
+  const isInterviewerSection = activeSection === "interviewers";
 
   const roleBadge = (role) => {
     const r = (role || "").toLowerCase();
@@ -249,7 +346,8 @@ export default function SuperAdminDashboard() {
               const count =
                 tab.id === "companies"    ? companies.length :
                 tab.id === "interviewers" ? interviewers.length :
-                tab.id === "candidates"   ? candidates.length : allUsers.length;
+                tab.id === "candidates"   ? candidates.length :
+                tab.id === "bugs"         ? bugs.length : allUsers.length;
               const active = activeSection === tab.id;
 
               return (
@@ -333,47 +431,81 @@ export default function SuperAdminDashboard() {
             </button>
           </div>
 
-          {/* 3 Summary Stats Cards */}
-          <div className="grid grid-cols-3 gap-3.5">
-            <div className={`p-4 rounded-2xl border ${cardBg} space-y-1 shadow-lg`}>
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total {activeSection}</span>
-              <p className="text-2xl font-black text-slate-200">{totalCount}</p>
-            </div>
-            <div className={`p-4 rounded-2xl border border-emerald-500/30 ${cardBg} space-y-1 shadow-lg`}>
-              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Active & Verified</span>
-              <p className="text-2xl font-black text-emerald-400">{activeCount}</p>
-            </div>
-            <div className={`p-4 rounded-2xl border border-red-500/30 ${cardBg} space-y-1 shadow-lg`}>
-              <span className="text-[11px] font-bold text-red-400 uppercase tracking-wider">Inactive / Pending</span>
-              <p className="text-2xl font-black text-red-400">{inactiveCount}</p>
-            </div>
-          </div>
+          {activeSection === "bugs" ? (
+            <ReportBugTab user={user} isAdmin={true} />
+          ) : (
+            <div className="space-y-6">
 
-          {/* Table Container Card */}
-          <div className={`rounded-3xl border shadow-xl overflow-hidden ${cardBg}`}>
+              {/* 3 Summary Stats Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                <div className={`p-5 rounded-2xl border ${cardBg} space-y-2 shadow-xl relative overflow-hidden`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total {activeSection}</span>
+                    <div className="p-2 rounded-xl bg-white/5 text-slate-300 border border-white/10">
+                      <Users className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-black text-white">{totalCount}</p>
+                  <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-slate-400 rounded-full w-full" />
+                  </div>
+                </div>
+
+                <div className={`p-5 rounded-2xl border border-emerald-500/30 ${cardBg} space-y-2 shadow-xl relative overflow-hidden`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Active &amp; Verified</span>
+                    <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <ShieldCheck className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-black text-emerald-400">{activeCount}</p>
+                  <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${totalCount ? (activeCount / totalCount) * 100 : 0}%` }} />
+                  </div>
+                </div>
+
+                <div className={`p-5 rounded-2xl border border-amber-500/30 ${cardBg} space-y-2 shadow-xl relative overflow-hidden`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">Pending Review</span>
+                    <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      <Clock className="h-4 w-4 animate-pulse" />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-black text-amber-400">{pendingCount}</p>
+                  <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-400 rounded-full" style={{ width: `${totalCount ? (pendingCount / totalCount) * 100 : 0}%` }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Table Container Card */}
+              <div className={`rounded-3xl border shadow-2xl overflow-hidden ${cardBg}`}>
 
             {/* Filter Bar */}
             <div className={`p-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isDark ? "border-white/10" : "border-slate-200"}`}>
               {/* Filter tabs */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
                 {[
-                  { id: "all",      label: "All Records", count: totalCount },
-                  { id: "active",   label: "Active",      count: activeCount },
-                  { id: "inactive", label: "Inactive",    count: inactiveCount },
+                  { id: "all",      label: "All Records",     count: totalCount },
+                  { id: "pending",  label: "Pending Review",  count: pendingCount },
+                  { id: "active",   label: "Active",          count: activeCount },
+                  { id: "inactive", label: "Inactive",        count: inactiveCount },
                 ].map((t) => (
                   <button
                     key={t.id}
                     onClick={() => setFilterTab(t.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all ${
+                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap ${
                       filterTab === t.id
-                        ? "bg-amber-400 text-black shadow-md"
+                        ? "bg-amber-400 text-black shadow-lg shadow-amber-400/20"
                         : isDark
                         ? "text-slate-400 hover:text-white hover:bg-white/5 border border-white/5"
                         : "text-slate-600 hover:bg-slate-100 border border-slate-200"
                     }`}
                   >
                     <span>{t.label}</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/20">{t.count}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${filterTab === t.id ? "bg-black/20 text-black" : "bg-white/10 text-slate-300"}`}>
+                      {t.count}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -386,7 +518,7 @@ export default function SuperAdminDashboard() {
                   placeholder="Search name, email, company..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className={`w-full pl-9 pr-3 py-1.5 rounded-xl border text-xs outline-none ${
+                  className={`w-full pl-9 pr-3 py-2 rounded-xl border text-xs outline-none focus:ring-1 focus:ring-amber-400/50 ${
                     isDark ? "bg-[#0B151E] border-white/10 text-white placeholder-slate-500" : "bg-slate-50 border-slate-200 text-slate-900"
                   }`}
                 />
@@ -408,19 +540,119 @@ export default function SuperAdminDashboard() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className={`text-[11px] font-black uppercase tracking-wider border-b ${isDark ? "border-white/10 text-slate-400" : "border-slate-200 text-slate-500"}`}>
-                      <th className="py-3.5 px-5">Name / Account</th>
-                      <th className="py-3.5 px-4">Email</th>
-                      <th className="py-3.5 px-4">Role</th>
-                      <th className="py-3.5 px-4">Specialization / Domain</th>
-                      <th className="py-3.5 px-4">Status</th>
-                      <th className="py-3.5 px-4">Registered</th>
+                    <tr className={`text-[11px] font-black uppercase tracking-wider border-b ${isDark ? "border-white/10 text-slate-400 bg-white/[0.01]" : "border-slate-200 text-slate-500 bg-slate-50"}`}>
+                      {/* Name */}
+                      <th
+                        onClick={() => toggleSort("name")}
+                        className="py-3.5 px-5 cursor-pointer select-none group hover:text-white transition-colors"
+                        title="Click to sort by Name"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5 text-amber-400" />
+                          <span>Name</span>
+                          {sortBy === "name" ? (
+                            sortOrder === "ASC" ? (
+                              <ArrowUp className="h-3.5 w-3.5 text-amber-400" />
+                            ) : (
+                              <ArrowDown className="h-3.5 w-3.5 text-amber-400" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-30 group-hover:opacity-100 transition-opacity" />
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Email */}
+                      <th
+                        onClick={() => toggleSort("email")}
+                        className="py-3.5 px-4 cursor-pointer select-none group hover:text-white transition-colors"
+                        title="Click to sort by Email"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Mail className="h-3.5 w-3.5 text-cyan-400" />
+                          <span>Email</span>
+                          {sortBy === "email" ? (
+                            sortOrder === "ASC" ? (
+                              <ArrowUp className="h-3.5 w-3.5 text-cyan-400" />
+                            ) : (
+                              <ArrowDown className="h-3.5 w-3.5 text-cyan-400" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-30 group-hover:opacity-100 transition-opacity" />
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Role */}
+                      <th
+                        onClick={() => toggleSort("role")}
+                        className="py-3.5 px-4 cursor-pointer select-none group hover:text-white transition-colors"
+                        title="Click to sort by Role"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Tag className="h-3.5 w-3.5 text-purple-400" />
+                          <span>Role</span>
+                          {sortBy === "role" ? (
+                            sortOrder === "ASC" ? (
+                              <ArrowUp className="h-3.5 w-3.5 text-purple-400" />
+                            ) : (
+                              <ArrowDown className="h-3.5 w-3.5 text-purple-400" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-30 group-hover:opacity-100 transition-opacity" />
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Registered */}
+                      <th
+                        onClick={() => toggleSort("createdAt")}
+                        className="py-3.5 px-4 cursor-pointer select-none group hover:text-white transition-colors"
+                        title="Click to sort by Registration Date"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                          <span>Registered</span>
+                          {sortBy === "createdAt" ? (
+                            sortOrder === "ASC" ? (
+                              <ArrowUp className="h-3.5 w-3.5 text-amber-400" />
+                            ) : (
+                              <ArrowDown className="h-3.5 w-3.5 text-amber-400" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-30 group-hover:opacity-100 transition-opacity" />
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Status */}
+                      <th
+                        onClick={() => toggleSort("status")}
+                        className="py-3.5 px-4 cursor-pointer select-none group hover:text-white transition-colors"
+                        title="Click to sort by Status"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                          <span>Status</span>
+                          {sortBy === "status" ? (
+                            sortOrder === "ASC" ? (
+                              <ArrowUp className="h-3.5 w-3.5 text-emerald-400" />
+                            ) : (
+                              <ArrowDown className="h-3.5 w-3.5 text-emerald-400" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-30 group-hover:opacity-100 transition-opacity" />
+                          )}
+                        </div>
+                      </th>
+
                       <th className="py-3.5 px-4 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className={`divide-y ${isDark ? "divide-white/5" : "divide-slate-100"}`}>
-                    {filtered.map((item) => {
+                    {paginatedItems.map((item) => {
                       const isActive    = item.isActive !== false;
+                      const isVerified  = item.role === "interviewer" ? item.interviewerProfile?.isVerified === true : isActive;
                       const isBusy      = actionLoading === item.userId;
                       const role        = item.role || "candidate";
                       const displayName =
@@ -429,23 +661,13 @@ export default function SuperAdminDashboard() {
                         item.fullName || item.username || item.email?.split("@")[0] || "Account";
                       const initial = displayName[0]?.toUpperCase() || "U";
 
-                      // Specialized subtitle text
-                      let domainTag = "—";
-                      if (role === "admin" || role === "company") {
-                        domainTag = item.companyProfile?.industry || item.profile?.industry || "Tech Enterprise";
-                      } else if (role === "interviewer") {
-                        domainTag = item.interviewerProfile?.title || "Technical Interviewer";
-                      } else if (role === "candidate") {
-                        domainTag = item.candidateProfile?.currentRole || "Software Engineer";
-                      }
-
                       return (
-                        <tr key={item.userId} className={`transition-colors ${isDark ? "hover:bg-white/[0.025]" : "hover:bg-slate-50"}`}>
+                        <tr key={item.userId} className={`transition-colors ${isDark ? "hover:bg-white/[0.02]" : "hover:bg-slate-50"}`}>
 
-                          {/* Name + Avatar */}
+                          {/* 1. Name + Avatar */}
                           <td className="py-3.5 px-5">
                             <div className="flex items-center gap-3">
-                              <div className={`h-9 w-9 rounded-2xl flex items-center justify-center font-black text-sm flex-shrink-0 ${avatarColor(role)}`}>
+                              <div className={`h-9 w-9 rounded-2xl flex items-center justify-center font-black text-sm flex-shrink-0 shadow-sm ${avatarColor(role)}`}>
                                 {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : initial}
                               </div>
                               <div>
@@ -455,118 +677,125 @@ export default function SuperAdminDashboard() {
                             </div>
                           </td>
 
-                          {/* Email */}
+                          {/* 2. Email */}
                           <td className="py-3.5 px-4 font-mono text-[11px] text-slate-300">{item.email}</td>
 
-                          {/* Role Badge */}
+                          {/* 3. Role Badge */}
                           <td className="py-3.5 px-4">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase ${roleBadge(role)}`}>
                               {role === "admin" ? "Company" : role}
                             </span>
                           </td>
 
-                          {/* Domain / Specialization Tag */}
-                          <td className="py-3.5 px-4 text-slate-300 font-semibold">
-                            <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/5 text-[11px]">
-                              {domainTag}
-                            </span>
-                          </td>
-
-                          {/* Status Badge */}
-                          <td className="py-3.5 px-4">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-black ${
-                              isActive
-                                ? "bg-emerald-500/20 border-emerald-400/40 text-emerald-400"
-                                : "bg-red-500/20 border-red-400/40 text-red-400"
-                            }`}>
-                              {isActive ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-                              {isActive ? "Active" : "Inactive"}
-                            </span>
-                          </td>
-
-                          {/* Registered Date */}
-                          <td className="py-3.5 px-4 text-slate-400">
+                          {/* 4. Registered Date */}
+                          <td className="py-3.5 px-4 text-slate-400 font-medium text-[11px]">
                             {item.createdAt
                               ? new Date(item.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
                               : "—"}
                           </td>
 
-                          {/* Action Buttons */}
+                          {/* 5. Status Badge */}
                           <td className="py-3.5 px-4">
-                            <div className="flex items-center justify-center flex-wrap gap-1.5">
+                            {isVerified && isActive ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-extrabold bg-emerald-500/15 border-emerald-400/30 text-emerald-300">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Active &amp; Verified
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-extrabold bg-amber-500/15 border-amber-400/30 text-amber-300 animate-pulse">
+                                <Clock className="h-3.5 w-3.5 text-amber-400" /> Pending Review
+                              </span>
+                            )}
+                          </td>
+
+                          {/* 6. Streamlined Action Buttons */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center justify-center gap-2">
 
                               {/* 👁️ View Full Detailed Profile */}
                               <button
                                 onClick={() => setDetailModal(item)}
-                                title="View Comprehensive Details"
-                                className="px-2.5 py-1 rounded-xl border border-amber-400/40 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20 text-[10px] font-black flex items-center gap-1 transition-colors"
+                                title="View Details"
+                                className="px-3 py-1.5 rounded-xl border border-sky-400/30 bg-sky-400/10 text-sky-300 hover:bg-sky-400/20 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
                               >
-                                <Eye className="h-3 w-3" /> Details
+                                <Eye className="h-3.5 w-3.5" /> Details
                               </button>
 
-                              {/* Approve / Reject for Companies */}
+                              {/* Primary Approval Button: Approve / Revoke */}
                               {isCompanySection && (
-                                <>
+                                !isActive ? (
                                   <button
-                                    disabled={isBusy || isActive}
+                                    disabled={isBusy}
                                     onClick={() => handleApprove(item)}
-                                    title="Approve"
-                                    className={`px-2 py-1 rounded-xl border text-[10px] font-black flex items-center gap-1 transition-colors ${
-                                      isActive ? "opacity-40 cursor-not-allowed border-white/5 text-slate-500"
-                                               : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                                    }`}
+                                    title="Approve Company"
+                                    className="px-3 py-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-sm"
                                   >
-                                    <CheckCircle2 className="h-3 w-3" /> Approve
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Approve
                                   </button>
+                                ) : (
                                   <button
-                                    disabled={isBusy || !isActive}
+                                    disabled={isBusy}
                                     onClick={() => handleReject(item)}
-                                    title="Reject"
-                                    className={`px-2 py-1 rounded-xl border text-[10px] font-black flex items-center gap-1 transition-colors ${
-                                      !isActive ? "opacity-40 cursor-not-allowed border-white/5 text-slate-500"
-                                               : "border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
-                                    }`}
+                                    title="Revoke / Deactivate Company"
+                                    className="px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-bold flex items-center gap-1.5 transition-all"
                                   >
-                                    <XCircle className="h-3 w-3" /> Reject
+                                    <XCircle className="h-3.5 w-3.5 text-amber-400" /> Revoke
                                   </button>
-                                </>
+                                )
                               )}
 
-                              {/* Restore */}
-                              <button
-                                disabled={isBusy || isActive}
-                                onClick={() => handleRestore(item)}
-                                title="Restore account"
-                                className={`px-2 py-1 rounded-xl border text-[10px] font-black flex items-center gap-1 transition-colors ${
-                                  isActive ? "opacity-40 cursor-not-allowed border-white/5 text-slate-500"
-                                           : "border-sky-500/40 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20"
-                                }`}
-                              >
-                                <RotateCcw className="h-3 w-3" /> Restore
-                              </button>
+                              {isInterviewerSection && (
+                                (!item.interviewerProfile?.isVerified || !isActive) ? (
+                                  <button
+                                    disabled={isBusy}
+                                    onClick={() => handleApproveInterviewer(item)}
+                                    title="Approve & Verify Interviewer"
+                                    className="px-3 py-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-sm"
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Approve
+                                  </button>
+                                ) : (
+                                  <button
+                                    disabled={isBusy}
+                                    onClick={() => handleRejectInterviewer(item)}
+                                    title="Revoke Verification"
+                                    className="px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-bold flex items-center gap-1.5 transition-all"
+                                  >
+                                    <XCircle className="h-3.5 w-3.5 text-amber-400" /> Revoke
+                                  </button>
+                                )
+                              )}
 
-                              {/* Soft Delete */}
-                              <button
-                                disabled={isBusy || !isActive}
-                                onClick={() => setConfirmModal({ type: "soft", item })}
-                                title="Soft delete (deactivate)"
-                                className={`px-2 py-1 rounded-xl border text-[10px] font-black flex items-center gap-1 transition-colors ${
-                                  !isActive ? "opacity-40 cursor-not-allowed border-white/5 text-slate-500"
-                                            : "border-orange-500/40 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20"
-                                }`}
-                              >
-                                <XCircle className="h-3 w-3" /> Deactivate
-                              </button>
+                              {/* Restore or Deactivate Account Icon Action */}
+                              {!isActive ? (
+                                <button
+                                  disabled={isBusy}
+                                  onClick={() => handleRestore(item)}
+                                  title="Restore / Reactivate Account"
+                                  className="p-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 transition-all"
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                </button>
+                              ) : (
+                                <button
+                                  disabled={isBusy}
+                                  onClick={() => setConfirmModal({ type: "soft", item })}
+                                  title="Deactivate Account"
+                                  className="p-1.5 rounded-xl border border-orange-500/30 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-all"
+                                >
+                                  <AlertCircle className="h-3.5 w-3.5" />
+                                </button>
+                              )}
 
-                              {/* Hard Delete */}
+                              {/* Hard Delete Icon Button */}
                               <button
                                 disabled={isBusy}
                                 onClick={() => setConfirmModal({ type: "hard", item })}
-                                title="Permanently delete from database"
-                                className="px-2 py-1 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-[10px] font-black flex items-center gap-1 transition-colors"
+                                title="Permanently Delete Account"
+                                className="p-1.5 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
                               >
-                                <Trash2 className="h-3 w-3" /> Delete
+                                <Trash2 className="h-3.5 w-3.5" />
                               </button>
+
                             </div>
                           </td>
                         </tr>
@@ -576,7 +805,137 @@ export default function SuperAdminDashboard() {
                 </table>
               </div>
             )}
-          </div>
+
+            {/* Pagination Toolbar */}
+            {!loading && totalFiltered > 0 && (
+              <div className={`p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4 ${isDark ? "border-white/10 bg-white/[0.01]" : "border-slate-200 bg-slate-50"}`}>
+                
+                {/* Record count info */}
+                <div className="text-xs text-slate-400 font-medium">
+                  Showing <span className="font-bold text-white">{startIndex + 1}</span> to <span className="font-bold text-white">{endIndex}</span> of <span className="font-bold text-white">{totalFiltered}</span> entries
+                </div>
+
+                {/* Rows per page selector */}
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <span>Rows per page:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    className={`px-2.5 py-1 rounded-xl border text-xs font-bold outline-none cursor-pointer ${
+                      isDark ? "bg-[#0B151E] border-white/10 text-white" : "bg-white border-slate-200 text-slate-900"
+                    }`}
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+
+                {/* Navigation buttons */}
+                <div className="flex items-center gap-1.5">
+                  {/* First Page */}
+                  <button
+                    disabled={validPage === 1}
+                    onClick={() => setCurrentPage(1)}
+                    title="First Page"
+                    className={`p-1.5 rounded-xl border transition-all ${
+                      validPage === 1
+                        ? "opacity-30 cursor-not-allowed border-white/5 text-slate-500"
+                        : isDark
+                        ? "border-white/10 hover:bg-white/10 text-slate-300"
+                        : "border-slate-200 hover:bg-slate-100 text-slate-700"
+                    }`}
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </button>
+
+                  {/* Prev Page */}
+                  <button
+                    disabled={validPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    title="Previous Page"
+                    className={`p-1.5 rounded-xl border transition-all ${
+                      validPage === 1
+                        ? "opacity-30 cursor-not-allowed border-white/5 text-slate-500"
+                        : isDark
+                        ? "border-white/10 hover:bg-white/10 text-slate-300"
+                        : "border-slate-200 hover:bg-slate-100 text-slate-700"
+                    }`}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+
+                  {/* Numbered Page Buttons */}
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((page) => {
+                        if (totalPages <= 5) return true;
+                        return Math.abs(page - validPage) <= 1 || page === 1 || page === totalPages;
+                      })
+                      .map((page, idx, arr) => {
+                        const showEllipsis = idx > 0 && page - arr[idx - 1] > 1;
+                        return (
+                          <div key={page} className="flex items-center gap-1">
+                            {showEllipsis && <span className="px-1 text-slate-500 text-xs">…</span>}
+                            <button
+                              onClick={() => setCurrentPage(page)}
+                              className={`h-7 w-7 rounded-xl text-xs font-black transition-all flex items-center justify-center ${
+                                validPage === page
+                                  ? "bg-amber-400 text-black shadow-md"
+                                  : isDark
+                                  ? "border border-white/5 text-slate-400 hover:text-white hover:bg-white/5"
+                                  : "border border-slate-200 text-slate-600 hover:bg-slate-100"
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  {/* Next Page */}
+                  <button
+                    disabled={validPage === totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    title="Next Page"
+                    className={`p-1.5 rounded-xl border transition-all ${
+                      validPage === totalPages
+                        ? "opacity-30 cursor-not-allowed border-white/5 text-slate-500"
+                        : isDark
+                        ? "border-white/10 hover:bg-white/10 text-slate-300"
+                        : "border-slate-200 hover:bg-slate-100 text-slate-700"
+                    }`}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+
+                  {/* Last Page */}
+                  <button
+                    disabled={validPage === totalPages}
+                    onClick={() => setCurrentPage(totalPages)}
+                    title="Last Page"
+                    className={`p-1.5 rounded-xl border transition-all ${
+                      validPage === totalPages
+                        ? "opacity-30 cursor-not-allowed border-white/5 text-slate-500"
+                        : isDark
+                        ? "border-white/10 hover:bg-white/10 text-slate-300"
+                        : "border-slate-200 hover:bg-slate-100 text-slate-700"
+                    }`}
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </button>
+                </div>
+
+              </div>
+            )}
+
+            </div>
+
+            </div>
+
+          )}
         </main>
       </div>
 

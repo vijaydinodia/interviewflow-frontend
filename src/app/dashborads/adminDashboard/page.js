@@ -6,10 +6,11 @@ import {
   Building2, MapPin, Phone, Mail, Briefcase, Globe, Edit2,
   CheckCircle2, AlertCircle, Sparkles, Loader2, X,
   FileText, Code2, Check, ShieldCheck, RefreshCw, Upload, Image as ImageIcon,
-  ExternalLink
+  ExternalLink, Bug
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
 import DashboardHeader from "../_components/DashboardHeader";
+import ReportBugTab from "@/components/ReportBugTab";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -38,6 +39,7 @@ export default function AdminDashboard() {
   const [uploading, setUploading]   = useState(false);
   const [editOpen, setEditOpen]     = useState(false);
   const [editForm, setEditForm]     = useState(EMPTY);
+  const [activeTab, setActiveTab]   = useState("profile");
   const [toast, setToast]           = useState(null);
 
   const pdfInputRef = useRef(null);
@@ -209,7 +211,7 @@ export default function AdminDashboard() {
       <main className="p-6 max-w-5xl mx-auto space-y-6">
 
         {/* Page heading */}
-        <div className={`flex items-center justify-between pb-4 border-b ${isDark ? "border-white/10" : "border-slate-200"}`}>
+        <div className={`flex flex-wrap items-center justify-between gap-4 pb-4 border-b ${isDark ? "border-white/10" : "border-slate-200"}`}>
           <div className="flex items-center gap-3">
             <Building2 className="h-7 w-7 text-cyan-400" />
             <div>
@@ -217,15 +219,29 @@ export default function AdminDashboard() {
               <p className="text-xs text-slate-400">Manage your company profile and hiring settings</p>
             </div>
           </div>
-          <button
-            onClick={() => fetchProfile(token)}
-            className={`flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl border transition-colors ${
-              isDark ? "border-white/10 hover:bg-white/5 text-slate-300" : "border-slate-200 hover:bg-slate-100 text-slate-600"
-            }`}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveTab("profile")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                activeTab === "profile"
+                  ? "bg-cyan-500 text-black border-cyan-500 shadow-md"
+                  : isDark ? "bg-white/5 border-white/10 text-slate-300 hover:text-white" : "bg-slate-100 border-slate-300 text-slate-700"
+              }`}
+            >
+              <Building2 className="h-3.5 w-3.5" /> Company Profile
+            </button>
+            <button
+              onClick={() => setActiveTab("bugs")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                activeTab === "bugs"
+                  ? "bg-red-500 text-white border-red-500 shadow-md"
+                  : isDark ? "bg-white/5 border-white/10 text-slate-300 hover:text-white" : "bg-slate-100 border-slate-300 text-slate-700"
+              }`}
+            >
+              <Bug className="h-3.5 w-3.5" /> Report Bug / Issues
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -234,6 +250,51 @@ export default function AdminDashboard() {
           </div>
         ) : (
           <div className="space-y-6">
+
+            {/* ── PROFILE TAB ── */}
+            {activeTab === "profile" && (
+              <>
+            {profile.isVerified === false || user?.isActive === false ? (
+              <div className="p-5 rounded-3xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent text-amber-200 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+                <div className="flex items-start gap-3.5">
+                  <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
+                    <Clock className="h-6 w-6 animate-pulse" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-amber-400 text-black uppercase tracking-wider">
+                        ⏳ Pending Super Admin Approval
+                      </span>
+                    </div>
+                    <h3 className="text-sm sm:text-base font-extrabold text-white">
+                      Company Account Under Super Admin Review
+                    </h3>
+                    <p className="text-xs text-amber-200/80 max-w-2xl leading-relaxed">
+                      Your company registration is currently pending review by the platform Super Admin. Complete your company profile details below while your verification is processed.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                  <span className="text-[11px] font-mono font-bold px-3 py-1.5 rounded-xl bg-black/40 border border-amber-500/30 text-amber-300">
+                    Status: Under Review
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent text-emerald-200 flex items-center justify-between gap-3 animate-in fade-in duration-300">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                      Company Verified by Super Admin <span className="text-[10px] font-black px-2 py-0.2 rounded-full bg-emerald-400 text-black uppercase">Active</span>
+                    </span>
+                    <p className="text-[11px] text-emerald-300/80">Your company account is verified. You can post requirements and manage technical hiring rounds.</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ── Profile Completion Card ── */}
             <div className={`p-6 rounded-3xl border shadow-xl ${cardBg}`}>
@@ -388,6 +449,13 @@ export default function AdminDashboard() {
                 )}
               </div>
             </div>
+            </>
+            )}
+
+            {/* ── BUGS TAB ── */}
+            {activeTab === "bugs" && (
+              <ReportBugTab user={user} isAdmin={false} />
+            )}
           </div>
         )}
       </main>

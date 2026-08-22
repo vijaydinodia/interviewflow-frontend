@@ -7,18 +7,19 @@ import {
   Check, X, RefreshCw, AlertCircle, Loader2, Send,
   Calendar, FileText, Code2, Sparkles, ChevronRight,
   ChevronLeft, Menu, Play, RotateCcw, ShieldCheck,
-  Search, MessageSquare, ArrowUpRight, Award, Plus, Trash2
+  Search, MessageSquare, ArrowUpRight, Award, Plus, Trash2, Zap, Bug
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
 import DashboardHeader from "../_components/DashboardHeader";
+import ReportBugTab from "@/components/ReportBugTab";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 const SIDEBAR_ITEMS = [
   { id: "requests",     label: "Incoming Requests",     icon: MessageSquare, badge: "pendingCount" },
-  { id: "room",         label: "1-to-1 Live Room",      icon: Video,          badge: null },
   { id: "availability", label: "Schedule & Slots",      icon: Calendar,       badge: null },
   { id: "profile",      label: "My Specializations",    icon: Code2,          badge: null },
+  { id: "bugs",         label: "Report Bug / Issues",   icon: Bug,            badge: null },
 ];
 
 export default function InterviewerDashboard() {
@@ -36,6 +37,7 @@ export default function InterviewerDashboard() {
   const [loading, setLoading]         = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [statusFilter, setStatusFilter]   = useState("all");
+  const [poolFilter, setPoolFilter]       = useState("all"); // "all" | "direct" | "open"
   const [searchQuery, setSearchQuery]     = useState("");
   const [toast, setToast]             = useState(null);
 
@@ -164,22 +166,55 @@ export default function InterviewerDashboard() {
     }
   };
 
+  const handleToggleMentor = async () => {
+    const nextVal = profile?.isMentor === false ? true : false;
+    setProfile((prev) => ({ ...prev, isMentor: nextVal }));
+    try {
+      const res = await fetch(`${API_BASE}/interviewer/me`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ isMentor: nextVal }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast("success", nextVal ? "🌟 1:1 Mentorship enabled! Candidates can book mentorship with you." : "1:1 Mentorship paused.");
+      } else {
+        showToast("error", json.message || "Failed to update mentor status.");
+      }
+    } catch {
+      showToast("error", "Network error updating mentor setting.");
+    }
+  };
+
   if (!user) return null;
 
   const totalCount     = requests.length;
   const pendingCount   = requests.filter((r) => r.status === "pending").length;
   const acceptedCount  = requests.filter((r) => r.status === "accepted").length;
   const completedCount = requests.filter((r) => r.status === "completed").length;
+  const openPoolCount  = requests.filter((r) => r.requestType === "open" || !r.interviewerUserId).length;
+  const directCount    = requests.filter((r) => r.requestType === "direct" && r.interviewerUserId).length;
 
   const filteredRequests = requests.filter((req) => {
     const byStatus = statusFilter === "all" ? true : req.status === statusFilter;
+    const isOpen = req.requestType === "open" || !req.interviewerUserId;
+    const byPool =
+      poolFilter === "all"
+        ? true
+        : poolFilter === "open"
+        ? isOpen
+        : !isOpen;
+
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       (req.candidateUser?.firstName && req.candidateUser.firstName.toLowerCase().includes(q)) ||
       (req.candidateUser?.email && req.candidateUser.email.toLowerCase().includes(q)) ||
       (req.roleRequirement && req.roleRequirement.toLowerCase().includes(q)) ||
       (req.roomCode && req.roomCode.toLowerCase().includes(q));
-    return byStatus && matchesSearch;
+    return byStatus && byPool && matchesSearch;
   });
 
   const pageBg  = isDark ? "bg-[#0B151E] text-slate-100"  : "bg-slate-50 text-slate-900";
@@ -345,7 +380,7 @@ export default function InterviewerDashboard() {
                   </span>
                 )}
               </h1>
-              <p className="text-xs text-slate-400 mt-0.5">{user.email} • Review candidate interview requests and manage live rooms</p>
+              <p className="text-xs text-slate-400 mt-0.5">{user.email} • Review candidate interview requests and conduct Google Meet sessions</p>
             </div>
 
             <button
@@ -358,6 +393,49 @@ export default function InterviewerDashboard() {
               Refresh
             </button>
           </div>
+
+          {/* ══════════════ SUPER ADMIN VERIFICATION STATUS BANNER ══════════════ */}
+          {!profile?.isVerified ? (
+            <div className="p-5 rounded-3xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent text-amber-200 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+              <div className="flex items-start gap-3.5">
+                <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
+                  <Clock className="h-6 w-6 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-amber-400 text-black uppercase tracking-wider">
+                      ⏳ Pending Super Admin Approval
+                    </span>
+                  </div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-white">
+                    Your Interviewer Profile is Currently Under Review
+                  </h3>
+                  <p className="text-xs text-amber-200/80 max-w-2xl leading-relaxed">
+                    The Super Admin is reviewing your technical credentials and background. Once approved, your account status will automatically transition to <strong className="text-white font-black">Active &amp; Verified</strong>, unlocking full candidate matching and session management.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                <span className="text-[11px] font-mono font-bold px-3 py-1.5 rounded-xl bg-black/40 border border-amber-500/30 text-amber-300">
+                  Status: Pending Approval
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent text-emerald-200 flex items-center justify-between gap-3 animate-in fade-in duration-300">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <CheckCircle2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                    Account Verified by Super Admin <span className="text-[10px] font-black px-2 py-0.2 rounded-full bg-emerald-400 text-black uppercase">Active</span>
+                  </span>
+                  <p className="text-[11px] text-emerald-300/80">You are an active interviewer. You can accept technical mock requests and launch Google Meet calls.</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ══════════════ TAB 1: INCOMING REQUESTS & ACTIONS ══════════════ */}
           {activeTab === "requests" && (
@@ -386,35 +464,73 @@ export default function InterviewerDashboard() {
 
               {/* Filter Tabs & Search Bar */}
               <div className={`p-5 rounded-3xl border shadow-xl space-y-4 ${cardBg}`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  {/* Status Pills */}
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                    {[
-                      { id: "all", label: "All Requests", count: totalCount },
-                      { id: "pending", label: "Pending", count: pendingCount },
-                      { id: "accepted", label: "Accepted", count: acceptedCount },
-                      { id: "completed", label: "Completed", count: completedCount },
-                      { id: "rejected", label: "Rejected", count: requests.filter((r) => r.status === "rejected").length },
-                    ].map((tab) => (
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  {/* Status & Pool Filter Pills */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Status Pills */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                      {[
+                        { id: "all", label: "All Status", count: totalCount },
+                        { id: "pending", label: "Pending", count: pendingCount },
+                        { id: "accepted", label: "Accepted", count: acceptedCount },
+                        { id: "completed", label: "Completed", count: completedCount },
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setStatusFilter(tab.id)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all ${
+                            statusFilter === tab.id
+                              ? "bg-purple-500 text-white shadow-md"
+                              : isDark
+                              ? "text-slate-400 hover:text-white hover:bg-white/5 border border-white/5"
+                              : "text-slate-600 hover:bg-slate-100 border border-slate-200"
+                          }`}
+                        >
+                          <span>{tab.label}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/20">{tab.count}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="hidden sm:block h-5 w-px bg-white/10 mx-1" />
+
+                    {/* Source / Pool Pills */}
+                    <div className="flex items-center gap-1.5">
                       <button
-                        key={tab.id}
-                        onClick={() => setStatusFilter(tab.id)}
-                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all ${
-                          statusFilter === tab.id
-                            ? "bg-purple-500 text-white shadow-md"
-                            : isDark
-                            ? "text-slate-400 hover:text-white hover:bg-white/5 border border-white/5"
-                            : "text-slate-600 hover:bg-slate-100 border border-slate-200"
+                        onClick={() => setPoolFilter("all")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all ${
+                          poolFilter === "all"
+                            ? "bg-white/20 text-white border border-white/30"
+                            : "text-slate-400 hover:text-white border border-transparent"
                         }`}
                       >
-                        <span>{tab.label}</span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/20">{tab.count}</span>
+                        All Sources ({totalCount})
                       </button>
-                    ))}
+                      <button
+                        onClick={() => setPoolFilter("direct")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1 ${
+                          poolFilter === "direct"
+                            ? "bg-sky-500 text-white shadow-md"
+                            : "text-sky-400 hover:bg-sky-500/10 border border-sky-500/20"
+                        }`}
+                      >
+                        🎯 Direct ({directCount})
+                      </button>
+                      <button
+                        onClick={() => setPoolFilter("open")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1 ${
+                          poolFilter === "open"
+                            ? "bg-teal-500 text-black font-black shadow-md"
+                            : "text-teal-300 hover:bg-teal-500/10 border border-teal-500/20"
+                        }`}
+                      >
+                        ⚡ Matching Pool ({openPoolCount})
+                      </button>
+                    </div>
                   </div>
 
                   {/* Search Input */}
-                  <div className="relative w-full sm:w-64">
+                  <div className="relative w-full lg:w-64">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                     <input
                       type="text"
@@ -439,9 +555,9 @@ export default function InterviewerDashboard() {
                   <MessageSquare className="h-10 w-10 text-slate-500 mx-auto" />
                   <h4 className="text-sm font-extrabold text-slate-200">No Interview Requests Found</h4>
                   <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                    {statusFilter === "all"
+                    {statusFilter === "all" && poolFilter === "all"
                       ? "You haven't received any candidate interview requests yet. Keep your availability updated."
-                      : `No requests match the "${statusFilter}" status filter.`}
+                      : `No requests match the selected filters.`}
                   </p>
                 </div>
               ) : (
@@ -452,6 +568,7 @@ export default function InterviewerDashboard() {
                       : req.candidateUser?.username || "Candidate";
                     const cEmail = req.candidateUser?.email || "";
                     const topics = Array.isArray(req.topicFocus) ? req.topicFocus : [req.topicFocus].filter(Boolean);
+                    const isOpenPool = req.requestType === "open" || !req.interviewerUserId;
                     const isPending = req.status === "pending";
                     const isAccepted = req.status === "accepted";
                     const isCompleted = req.status === "completed";
@@ -461,7 +578,9 @@ export default function InterviewerDashboard() {
                       <div
                         key={req.requestId}
                         className={`p-6 rounded-3xl border shadow-xl transition-all space-y-4 ${cardBg} ${
-                          isPending
+                          isOpenPool && isPending
+                            ? "border-teal-500/50 bg-gradient-to-r from-teal-500/5 via-transparent to-transparent hover:border-teal-400"
+                            : isPending
                             ? "border-amber-500/40 hover:border-amber-400"
                             : isAccepted
                             ? "border-emerald-500/40 hover:border-emerald-400"
@@ -471,14 +590,31 @@ export default function InterviewerDashboard() {
                         {/* Header: Candidate Info & Status Pill */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
                           <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-purple-400 to-indigo-400 p-0.5 shadow-md flex items-center justify-center shrink-0">
-                              <div className={`h-full w-full rounded-[14px] ${isDark ? "bg-[#080E18]" : "bg-white"} flex items-center justify-center font-black text-base text-purple-400`}>
+                            <div className={`h-12 w-12 rounded-2xl p-0.5 shadow-md flex items-center justify-center shrink-0 ${
+                              isOpenPool
+                                ? "bg-gradient-to-tr from-teal-400 to-cyan-400"
+                                : "bg-gradient-to-tr from-purple-400 to-indigo-400"
+                            }`}>
+                              <div className={`h-full w-full rounded-[14px] ${isDark ? "bg-[#080E18]" : "bg-white"} flex items-center justify-center font-black text-base ${
+                                isOpenPool ? "text-teal-400" : "text-purple-400"
+                              }`}>
                                 {cName[0]?.toUpperCase()}
                               </div>
                             </div>
                             <div>
-                              <h3 className="font-extrabold text-sm text-slate-100 flex items-center gap-2">
+                              <h3 className="font-extrabold text-sm text-slate-100 flex flex-wrap items-center gap-2">
                                 {cName}
+
+                                {/* Request Type Pill */}
+                                <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
+                                  isOpenPool
+                                    ? "bg-teal-500/20 text-teal-300 border-teal-400/40"
+                                    : "bg-sky-500/20 text-sky-300 border-sky-400/40"
+                                }`}>
+                                  {isOpenPool ? "⚡ Matching Open Pool" : "🎯 Direct Request"}
+                                </span>
+
+                                {/* Status Pill */}
                                 <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase border ${
                                   isPending
                                     ? "bg-amber-500/20 text-amber-300 border-amber-400/40"
@@ -545,54 +681,55 @@ export default function InterviewerDashboard() {
                         <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2 border-t border-white/5">
                           {isPending && (
                             <>
-                              <button
-                                onClick={() => setRejectModal(req)}
-                                disabled={actionLoading === req.requestId}
-                                className="px-4 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 text-xs font-bold transition-all flex items-center gap-1.5"
-                              >
-                                <X className="h-3.5 w-3.5" /> Decline / Reject
-                              </button>
+                              {!isOpenPool && (
+                                <button
+                                  onClick={() => setRejectModal(req)}
+                                  disabled={actionLoading === req.requestId}
+                                  className="px-4 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 text-xs font-bold transition-all flex items-center gap-1.5"
+                                >
+                                  <X className="h-3.5 w-3.5" /> Decline / Reject
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleTakeAction(req.requestId, "accepted")}
                                 disabled={actionLoading === req.requestId}
-                                className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-extrabold text-xs shadow-md hover:brightness-110 transition-all flex items-center gap-1.5"
+                                className={`px-5 py-2 rounded-xl font-extrabold text-xs shadow-lg hover:brightness-110 transition-all flex items-center gap-1.5 ${
+                                  isOpenPool
+                                    ? "bg-gradient-to-r from-teal-400 via-cyan-400 to-sky-400 text-[#0B151E]"
+                                    : "bg-gradient-to-r from-emerald-500 to-teal-500 text-black"
+                                }`}
                               >
-                                {actionLoading === req.requestId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                                Accept & Confirm
+                                {actionLoading === req.requestId ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : isOpenPool ? (
+                                  <Zap className="h-3.5 w-3.5 fill-current" />
+                                ) : (
+                                  <Check className="h-3.5 w-3.5" />
+                                )}
+                                {isOpenPool ? "⚡ Accept & Claim Interview" : "Accept & Confirm"}
                               </button>
                             </>
                           )}
 
-                          {req.meetingLink && (
+                          {isAccepted && req.meetingLink && (
                             <a
                               href={req.meetingLink}
                               target="_blank"
                               rel="noreferrer"
-                              className="px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 text-xs font-bold transition-all flex items-center gap-1.5"
+                              className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black text-xs shadow-lg hover:brightness-110 transition-all flex items-center gap-1.5"
                             >
-                              <Video className="h-3.5 w-3.5 text-emerald-400" /> Google Meet
+                              <Video className="h-3.5 w-3.5 text-black fill-current" /> Join Google Meet Call
                             </a>
                           )}
 
                           {isAccepted && (
-                            <>
-                              <button
-                                onClick={() => handleTakeAction(req.requestId, "completed")}
-                                disabled={actionLoading === req.requestId}
-                                className="px-3.5 py-2 rounded-xl border border-white/10 text-slate-300 hover:bg-white/5 text-xs font-bold flex items-center gap-1.5"
-                              >
-                                <ShieldCheck className="h-3.5 w-3.5 text-purple-400" /> Mark Completed
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setActiveLiveRoom(req);
-                                  setActiveTab("room");
-                                }}
-                                className="px-5 py-2 rounded-xl bg-gradient-to-r from-sky-400 via-cyan-400 to-teal-400 text-[#0B151E] font-extrabold text-xs shadow-lg hover:brightness-110 flex items-center gap-1.5"
-                              >
-                                <Play className="h-3.5 w-3.5 fill-current" /> Launch 1-to-1 Live Room
-                              </button>
-                            </>
+                            <button
+                              onClick={() => handleTakeAction(req.requestId, "completed")}
+                              disabled={actionLoading === req.requestId}
+                              className="px-3.5 py-2 rounded-xl border border-white/10 text-slate-300 hover:bg-white/5 text-xs font-bold flex items-center gap-1.5"
+                            >
+                              <ShieldCheck className="h-3.5 w-3.5 text-purple-400" /> Mark Completed
+                            </button>
                           )}
 
                           {isCompleted && (
@@ -615,72 +752,7 @@ export default function InterviewerDashboard() {
             </div>
           )}
 
-          {/* ══════════════ TAB 2: LIVE ROOM CONNECTOR ══════════════ */}
-          {activeTab === "room" && (
-            <div className="space-y-6">
-              <div className={`p-6 rounded-3xl border shadow-xl space-y-5 ${cardBg} border-purple-500/40`}>
-                <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 rounded-2xl bg-purple-500 text-white shadow-lg shadow-purple-500/20">
-                      <Video className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <h2 className="text-base font-extrabold">1-to-1 Live Technical Interview Room</h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Real-time code synchronization, compiler test cases, and HD WebRTC video</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-black px-3 py-1 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/30 uppercase">
-                    Live Room
-                  </span>
-                </div>
-
-                {activeLiveRoom ? (
-                  <div className={`p-5 rounded-2xl border space-y-3 bg-gradient-to-br from-purple-500/10 via-indigo-500/5 to-cyan-500/10 border-purple-500/30`}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-extrabold text-sm text-purple-300">
-                          Connected Candidate: {activeLiveRoom.candidateUser?.firstName || "Candidate"}
-                        </h4>
-                        <p className="text-xs text-slate-400">Role: {activeLiveRoom.roleRequirement} • Room Code: <strong className="font-mono text-white">{activeLiveRoom.roomCode}</strong></p>
-                      </div>
-                      <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
-                        Session Ready ✓
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <label className="block text-xs font-bold text-slate-300">Enter or Paste Candidate Room Code</label>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <input
-                        type="text"
-                        placeholder="e.g. INT-8924-FLOW"
-                        value={customRoomCode}
-                        onChange={(e) => setCustomRoomCode(e.target.value)}
-                        className={`flex-1 rounded-2xl border px-4 py-3 text-xs outline-none font-mono ${
-                          isDark ? "bg-[#0B151E] border-white/10 text-white placeholder-slate-500" : "bg-slate-50 border-slate-200 text-slate-900"
-                        }`}
-                      />
-                      <button
-                        onClick={() => {
-                          if (!customRoomCode.trim()) {
-                            showToast("error", "Please enter a valid room code.");
-                            return;
-                          }
-                          showToast("success", `Connecting to 1-to-1 interview room: ${customRoomCode}`);
-                        }}
-                        className="px-6 py-3 rounded-2xl bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-extrabold text-xs shadow-lg hover:brightness-110 flex items-center justify-center gap-2"
-                      >
-                        <Play className="h-4 w-4 fill-current" /> Join 1-to-1 Room
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ══════════════ TAB 3: SCHEDULE & SLOTS ══════════════ */}
+          {/* ══════════════ TAB: SCHEDULE & SLOTS ══════════════ */}
           {activeTab === "availability" && (
             <div className="space-y-6">
               <div className={`p-6 rounded-3xl border shadow-xl space-y-5 ${cardBg}`}>
@@ -823,22 +895,33 @@ export default function InterviewerDashboard() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                   <div className={`p-4 rounded-2xl border space-y-1 ${innerBg}`}>
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Title / Designation</span>
-                    <p className="font-extrabold text-slate-100">{profile?.title || "Not configured"}</p>
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Job Title / Seniority</span>
+                    <p className="font-extrabold text-slate-100">{profile?.title || "Senior Software Engineer"}</p>
                   </div>
 
                   <div className={`p-4 rounded-2xl border space-y-1 ${innerBg}`}>
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Department</span>
-                    <p className="font-extrabold text-slate-100">{profile?.department || "Engineering"}</p>
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Current Tech Company</span>
+                    <p className="font-extrabold text-cyan-300">{profile?.company || profile?.companyProfile?.companyName || "Tech Industry Leader"}</p>
+                  </div>
+
+                  <div className={`p-4 rounded-2xl border space-y-1 ${innerBg}`}>
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Domain / Experience</span>
+                    <p className="font-extrabold text-slate-100">{profile?.department || "Engineering"} • {profile?.experience || "5+ Years"}</p>
                   </div>
 
                   <div className={`p-4 rounded-2xl border space-y-1 ${innerBg}`}>
                     <span className="text-[10px] uppercase font-bold text-slate-400">Verification Status</span>
-                    <p className="font-extrabold text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="h-4 w-4" /> {profile?.isVerified ? "Verified Expert" : "Active"}
-                    </p>
+                    {profile?.isVerified ? (
+                      <p className="font-extrabold text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="h-4 w-4" /> Verified Expert (Active)
+                      </p>
+                    ) : (
+                      <p className="font-extrabold text-amber-400 flex items-center gap-1">
+                        <Clock className="h-4 w-4 animate-pulse" /> Pending Review
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -856,9 +939,51 @@ export default function InterviewerDashboard() {
                     )}
                   </div>
                 </div>
+
+                {/* 1:1 Guidance & Mentorship Toggle Card */}
+                <div className={`p-5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+                  profile?.isMentor !== false ? "border-cyan-500/40 bg-cyan-500/5" : "border-white/10 bg-white/[0.02]"
+                }`}>
+                  <div className="flex items-start gap-3.5">
+                    <div className={`p-3 rounded-2xl ${profile?.isMentor !== false ? "bg-cyan-500/20 text-cyan-400 border border-cyan-400/30" : "bg-white/5 text-slate-400"}`}>
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-extrabold text-sm text-white">Work as 1 : 1 Career &amp; Technical Mentor</h3>
+                        {profile?.isMentor !== false ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full border bg-cyan-500/20 border-cyan-400/40 text-cyan-300 font-bold">
+                            🌟 Active 1:1 Mentor (Default: ON)
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full border bg-slate-500/20 border-slate-400/40 text-slate-400 font-bold">
+                            Mentorship Paused
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
+                        Allow candidates to discover your profile in the 1:1 Guidance &amp; Mentorship directory and book 1-on-1 career roadmap, system design, and mock interview video sessions on Google Meet.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle Switch */}
+                  <label className="relative inline-flex items-center cursor-pointer self-start sm:self-auto shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={profile?.isMentor !== false}
+                      onChange={handleToggleMentor}
+                      className="sr-only peer"
+                    />
+                    <div className="w-12 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-cyan-400 peer-checked:to-teal-400"></div>
+                  </label>
+                </div>
               </div>
             </div>
           )}
+
+          {/* ══════════════ TAB 5: REPORT BUG / ISSUES ══════════════ */}
+          {activeTab === "bugs" && <ReportBugTab user={user} isAdmin={false} />}
         </main>
       </div>
 

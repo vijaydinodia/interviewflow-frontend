@@ -3,15 +3,19 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Sun, Moon, User, Key, LogOut, ChevronDown, Camera, X, CheckCircle2, AlertCircle, Edit3, ShieldCheck, Mail, Tag, CheckCircle
+  Sun, Moon, User, Key, LogOut, ChevronDown, Camera, X, CheckCircle2, AlertCircle, Edit3, ShieldCheck, Mail, Tag, CheckCircle, Sparkles
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 export default function DashboardHeader({ title, roleBadge }) {
   const router = useRouter();
   const { isDark, toggleTheme } = useTheme();
 
   const [user, setUser] = useState(null);
+  const [isMentor, setIsMentor] = useState(true);
+  const [mentorUpdating, setMentorUpdating] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [viewProfileOpen, setViewProfileOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
@@ -36,6 +40,20 @@ export default function DashboardHeader({ title, roleBadge }) {
         email: parsed.email || "",
         avatarUrl: parsed.avatarUrl || "",
       });
+
+      if (parsed.role === "interviewer") {
+        const token = localStorage.getItem("interviewflow_token") || parsed.token;
+        fetch(`${API_BASE}/interviewer/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((res) => res.json())
+          .then((json) => {
+            if (json.success && json.data) {
+              setIsMentor(json.data.isMentor !== false);
+            }
+          })
+          .catch(() => {});
+      }
     }
   }, []);
 
@@ -91,6 +109,31 @@ export default function DashboardHeader({ title, roleBadge }) {
     }, 1200);
   };
 
+  const handleToggleMentor = async () => {
+    const nextVal = !isMentor;
+    setIsMentor(nextVal);
+    setMentorUpdating(true);
+    try {
+      const token = localStorage.getItem("interviewflow_token") || user?.token;
+      const res = await fetch(`${API_BASE}/interviewer/me`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ isMentor: nextVal }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setIsMentor(!nextVal);
+      }
+    } catch {
+      setIsMentor(!nextVal);
+    } finally {
+      setMentorUpdating(false);
+    }
+  };
+
   if (!user) return null;
 
   return (
@@ -115,6 +158,31 @@ export default function DashboardHeader({ title, roleBadge }) {
 
         {/* Quick Nav, Theme Toggle & Profile Dropdown */}
         <div className="flex items-center gap-2.5 sm:gap-3">
+          {/* 🌟 1:1 Mentor Option in Navbar for Interviewers */}
+          {user?.role === "interviewer" && (
+            <button
+              type="button"
+              onClick={handleToggleMentor}
+              disabled={mentorUpdating}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-extrabold transition-all shadow-sm ${
+                isMentor
+                  ? "border-cyan-500/40 bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25"
+                  : isDark
+                  ? "border-white/10 bg-white/5 text-slate-400 hover:text-slate-200"
+                  : "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+              title="Toggle 1:1 Mentorship availability (Default: ON)"
+            >
+              <Sparkles className={`h-3.5 w-3.5 ${isMentor ? "text-cyan-400 fill-cyan-400/30" : "text-slate-400"}`} />
+              <span className="hidden sm:inline">1 : 1 Mentor:</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-black uppercase ${
+                isMentor ? "bg-cyan-400 text-[#0B151E]" : "bg-slate-500/20 text-slate-400"
+              }`}>
+                {isMentor ? "ON" : "OFF"}
+              </span>
+            </button>
+          )}
+
           {/* Theme Toggle Button */}
           <button
             type="button"
@@ -169,6 +237,26 @@ export default function DashboardHeader({ title, roleBadge }) {
                   <p className="text-xs font-bold truncate">{user.fullName}</p>
                   <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
                 </div>
+
+                {/* 1:1 Mentorship Switch in Dropdown */}
+                {user?.role === "interviewer" && (
+                  <div
+                    onClick={handleToggleMentor}
+                    className={`w-full flex items-center justify-between gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer transition-colors ${
+                      isDark ? "hover:bg-white/5 text-slate-200" : "hover:bg-slate-100 text-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-cyan-400" />
+                      <span>1 : 1 Mentorship</span>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase ${
+                      isMentor ? "bg-cyan-400 text-[#0B151E]" : "bg-slate-500/20 text-slate-400 border border-white/10"
+                    }`}>
+                      {isMentor ? "ON" : "OFF"}
+                    </span>
+                  </div>
+                )}
 
                 {/* Profile option (View Profile Page) */}
                 <button

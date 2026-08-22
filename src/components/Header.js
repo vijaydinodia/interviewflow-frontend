@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, User, Home, KeyRound, ChevronDown, Menu, X, Sun, Moon, LayoutDashboard, UserCheck } from "lucide-react";
+import { LogOut, User, Home, KeyRound, ChevronDown, Menu, X, Sun, Moon, LayoutDashboard, UserCheck, Code2 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
 
 export default function Header() {
@@ -84,6 +84,9 @@ export default function Header() {
               <Link href={dashboardUrl} className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 font-bold hover:bg-cyan-500/20 transition-all`}>
                 <LayoutDashboard className="w-4 h-4" /> Dashboard
               </Link>
+              <Link href="/compiler" className={`flex items-center gap-1.5 font-bold ${pathname === "/compiler" ? "text-emerald-400 font-bold" : (isDark ? "text-emerald-400 hover:text-emerald-300" : "text-teal-600 hover:text-teal-700")}`}>
+                <Code2 className="w-4 h-4" /> Online Compiler
+              </Link>
               <Link href="/profile" className={`flex items-center gap-1.5 ${pathname === "/profile" ? (isDark ? "text-cyan-400 font-bold" : "text-indigo-600 font-bold") : (isDark ? "hover:text-cyan-400" : "hover:text-indigo-600")}`}>
                 <User className="w-4 h-4" /> Profile
               </Link>
@@ -93,12 +96,11 @@ export default function Header() {
               <Link href="/" className={`flex items-center gap-1.5 ${pathname === "/" ? (isDark ? "text-cyan-400 font-bold" : "text-indigo-600 font-bold") : (isDark ? "hover:text-cyan-400" : "hover:text-indigo-600")}`}>
                 <Home className="w-4 h-4" /> Home
               </Link>
+              <Link href="/compiler" className={`flex items-center gap-1.5 font-bold ${isDark ? "text-emerald-400 hover:text-emerald-300" : "text-teal-600 hover:text-teal-700"}`}>
+                <Code2 className="w-4 h-4" /> Online Compiler
+              </Link>
               <Link href="#features" className={isDark ? "hover:text-cyan-400 transition-colors" : "hover:text-indigo-600 transition-colors"}>
                 Features
-              </Link>
-              <Link href="#solutions" className={`flex items-center gap-1 ${isDark ? "hover:text-cyan-400" : "hover:text-indigo-600"}`}>
-                <span>Solutions</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-60" />
               </Link>
               <Link href="#why" className={isDark ? "hover:text-cyan-400 transition-colors" : "hover:text-indigo-600 transition-colors"}>
                 Why Us
