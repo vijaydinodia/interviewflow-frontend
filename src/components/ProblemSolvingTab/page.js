@@ -541,6 +541,9 @@ export default function ProblemSolvingTab() {
                   initialLanguage={selectedLang}
                   initialCode={currentSnippet}
                   initialStdin={selectedQuestion.sampleTestCase || ""}
+                  testCases={selectedQuestion.examples || []}
+                  questionDescription={selectedQuestion.description || ""}
+                  questionTitle={selectedQuestion.title || ""}
                   onCodeChange={(code, lang) => setSelectedLang(lang)}
                 />
               </div>
