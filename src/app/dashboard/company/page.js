@@ -3,11 +3,11 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export default function RedirectCandidateDashboard() {
+export default function RedirectCompanyDashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/dashboard/candidate");
+    router.replace("/dashboard/admin");
   }, [router]);
 
   return null;

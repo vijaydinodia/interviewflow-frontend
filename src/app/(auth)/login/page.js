@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, Eye, EyeOff, AlertCircle, Home, LayoutDashboard, Sparkles, ArrowRight, User } from "lucide-react";
 import AuthLayout from "../_components/AuthLayout";
+import GuestRoute from "@/components/GuestRoute/page";
 import { useTheme } from "@/custom_hook/UseTheme";
 import { api } from "@/api";
 
@@ -51,10 +52,10 @@ export default function LoginPage() {
 
   const getDashboardUrl = (role) => {
     const r = (role || "").toLowerCase();
-    if (r === "superadmin") return "/dashborads/superAdminDashborad";
-    if (r === "admin" || r === "company") return "/dashborads/adminDashboard";
-    if (r === "interviewer") return "/dashborads/interviewerDashboard";
-    return "/dashborads/candidateDashboard";
+    if (r === "superadmin") return "/dashboard/super-admin";
+    if (r === "admin" || r === "company") return "/dashboard/admin";
+    if (r === "interviewer") return "/dashboard/interviewer";
+    return "/dashboard/candidate";
   };
 
   const handleSubmit = async (e) => {
@@ -161,7 +162,8 @@ export default function LoginPage() {
     }`;
 
   return (
-    <AuthLayout>
+    <GuestRoute>
+      <AuthLayout>
       <div className="flex items-center gap-2 mb-3">
         <div className={`flex h-8 w-8 items-center justify-center rounded-xl font-extrabold text-sm shadow ${
           isDark ? "bg-gradient-to-tr from-sky-400 via-cyan-400 to-teal-400 text-[#0B151E]" : "bg-gradient-to-tr from-indigo-600 to-purple-600 text-white"
@@ -273,6 +275,7 @@ export default function LoginPage() {
           </Link>
         </p>
       </form>
-    </AuthLayout>
+      </AuthLayout>
+    </GuestRoute>
   );
 }

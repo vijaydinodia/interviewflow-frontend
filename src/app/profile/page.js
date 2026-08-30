@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+import Header from "@/components/Header/page";
+import Footer from "@/components/Footer/page";
+import ProtectedRoute from "@/components/ProtectedRoute/page";
 import {
   MapPin, Briefcase, Phone, Mail, Edit2, FileText,
   Building2, GraduationCap, Code2, Loader2, AlertCircle,
@@ -12,6 +13,7 @@ import {
   ExternalLink
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
+import { api } from "@/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -22,36 +24,61 @@ function getApiEndpoint(role) {
 }
 
 const EMPTY_CANDIDATE = {
-  currentRole: "", yearsExperience: "", preferredLocation: "",
-  resumeUrl: "", skills: [], applicationStatus: "active",
+  fullName:        "",
+  currentRole:     "",
+  experience:      "",
+  skills:          [],
+  preferredRole:   "",
+  expectedSalary:  "",
+  targetCompanies: [],
+  location:        "",
+  resumeUrl:       "",
+  bio:             "",
+  avatarUrl:       "",
 };
 
 const EMPTY_INTERVIEWER = {
-  title: "", department: "", specialization: [], availability: [], isVerified: false,
+  title:          "",
+  company:        "",
+  experience:     "",
+  department:     "",
+  specialization: [],
+  availability:   [],
+  linkedinUrl:    "",
+  bio:            "",
+  avatarUrl:      "",
 };
 
 const EMPTY_COMPANY = {
-  companyName: "", tagline: "", website: "", industry: "",
-  companySize: "", location: "", contactPhone: "", contactEmail: "", logoUrl: "", verificationDoc: "",
+  companyName:     "",
+  tagline:         "",
+  website:         "",
+  industry:        "",
+  companySize:     "",
+  location:        "",
+  contactPhone:    "",
+  contactEmail:    "",
+  logoUrl:         "",
+  verificationDoc: "",
 };
 
 export default function ProfilePage() {
-  const router    = useRouter();
+  const router = useRouter();
   const { isDark } = useTheme();
 
-  const [user, setUser]           = useState(null);
-  const [token, setToken]         = useState(null);
-  const [profile, setProfile]     = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [saving, setSaving]       = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [editOpen, setEditOpen]   = useState(false);
-  const [editForm, setEditForm]   = useState({});
-  const [toast, setToast]         = useState(null);
-  const [newSkill, setNewSkill]   = useState("");
-  const [newSlot, setNewSlot]     = useState("");
-  const [slotFrom, setSlotFrom]   = useState("10:00");
-  const [slotTo, setSlotTo]       = useState("11:00");
+  const [user, setUser]             = useState(null);
+  const [token, setToken]           = useState(null);
+  const [profile, setProfile]       = useState(null);
+  const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState(false);
+  const [uploading, setUploading]   = useState(false);
+  const [editOpen, setEditOpen]     = useState(false);
+  const [editForm, setEditForm]     = useState({});
+  const [toast, setToast]           = useState(null);
+
+  const [newSkill, setNewSkill]     = useState("");
+  const [newCompany, setNewCompany] = useState("");
+  const [newSlot, setNewSlot]       = useState("");
 
   const pdfInputRef = useRef(null);
   const imgInputRef = useRef(null);
@@ -68,24 +95,22 @@ export default function ProfilePage() {
     setUser(parsed);
     const t = localStorage.getItem("interviewflow_token") || parsed.token;
     setToken(t);
-    fetchProfile(parsed, t);
+    fetchProfile(parsed);
   }, []);
 
-  const fetchProfile = async (parsedUser, authToken) => {
+  const fetchProfile = async (parsedUser) => {
     try {
       setLoading(true);
       const endpoint = getApiEndpoint(parsedUser.role);
-      const res  = await fetch(`${API_BASE}${endpoint}`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
-      const json = await res.json();
+      const res = await api.get(endpoint);
+      const json = res.data;
       if (json.success && json.data) {
         setProfile(json.data);
       } else {
         setProfile(getEmptyProfile(parsedUser.role));
       }
     } catch {
-      setProfile(getEmptyProfile(parsedUser?.role));
+      setProfile(getEmptyProfile(user?.role));
       showToast("error", "Failed to load profile. Showing empty form.");
     } finally {
       setLoading(false);
@@ -122,14 +147,10 @@ export default function ProfilePage() {
     try {
       setUploading(true);
       const endpoint = isPdf ? "/upload/pdf" : "/upload/image";
-      const res = await fetch(`${API_BASE}${endpoint}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
+      const res = await api.post(endpoint, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
-      const json = await res.json();
+      const json = res.data;
 
       if (json.success && json.data?.url) {
         const uploadedUrl = json.data.url;
@@ -161,16 +182,12 @@ export default function ProfilePage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!token || !user) return;
+    if (!user) return;
     try {
       setSaving(true);
       const endpoint = getApiEndpoint(user.role);
-      const res  = await fetch(`${API_BASE}${endpoint}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(editForm),
-      });
-      const json = await res.json();
+      const res = await api.put(endpoint, editForm);
+      const json = res.data;
       if (json.success) {
         setProfile({ ...profile, ...json.data });
         setEditOpen(false);
@@ -219,7 +236,8 @@ export default function ProfilePage() {
   const initial = (user.firstName || user.username || "U")[0].toUpperCase();
 
   return (
-    <div className={`min-h-screen flex flex-col ${pageBg}`}>
+    <ProtectedRoute allowedRoles={["candidate", "interviewer", "admin", "company", "superadmin"]}>
+      <div className={`min-h-screen flex flex-col ${pageBg}`}>
       <Header />
 
       {/* Toast */}
@@ -864,6 +882,7 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

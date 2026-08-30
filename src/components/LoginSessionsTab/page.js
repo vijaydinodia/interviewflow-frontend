@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { Shield, Laptop, Monitor, RefreshCw, Trash2, CheckCircle, AlertCircle, Search, Server, Cpu, Globe, Clock, UserCheck } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+import { api } from "@/api";
 
 export default function LoginSessionsTab({ user = null, isAdmin = false }) {
   const { isDark } = useTheme();
@@ -24,17 +23,14 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
   const fetchSessions = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("interviewflow_token");
       const url = isSuperOrAdmin
-        ? `${API_BASE}/api/sessions/all`
+        ? "/sessions/all"
         : user?.userId || user?.email
-        ? `${API_BASE}/api/sessions/my-sessions?userId=${user?.userId || ""}&userEmail=${user?.email || ""}`
-        : `${API_BASE}/api/sessions/all`;
+        ? `/sessions/my-sessions?userId=${user?.userId || ""}&userEmail=${user?.email || ""}`
+        : "/sessions/all";
 
-      const res = await fetch(url, {
-        headers: { Authorization: token ? `Bearer ${token}` : "" },
-      });
-      const data = await res.json();
+      const res = await api.get(url);
+      const data = res.data;
       console.log("[LoginSessionsTab] fetchSessions response:", data);
       if (data.success && Array.isArray(data.data)) {
         setSessions(data.data);
@@ -54,12 +50,8 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
   const handleTerminateSession = async (sessionId) => {
     if (!window.confirm("Are you sure you want to terminate this login session?")) return;
     try {
-      const token = localStorage.getItem("interviewflow_token");
-      const res = await fetch(`${API_BASE}/api/sessions/${sessionId}`, {
-        method: "DELETE",
-        headers: { Authorization: token ? `Bearer ${token}` : "" },
-      });
-      const data = await res.json();
+      const res = await api.delete(`/sessions/${sessionId}`);
+      const data = res.data;
       if (data.success) {
         setMsg({ type: "success", text: "Session terminated successfully!" });
         fetchSessions();

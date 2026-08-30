@@ -8,6 +8,8 @@ import {
   Check, Clock, Cpu, CheckCircle2, XCircle, AlertCircle, Zap, ArrowLeft, Home, LayoutDashboard, Sun, Moon
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
+import ProtectedRoute from "@/components/ProtectedRoute/page";
+import { api } from "@/api";
 
 // Dynamically import Monaco to avoid SSR window errors
 const Editor = dynamic(() => import("@monaco-editor/react"), {
@@ -117,22 +119,19 @@ export default function CompilerPage() {
     setError("");
 
     try {
-      const res = await fetch("/api/compiler/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sourceCode: code,
-          languageId: selectedLang.id,
-          stdin,
-        }),
+      const res = await api.post("/code/execute", {
+        sourceCode: code,
+        language: selectedLang.value,
+        stdin,
       });
 
-      const data = await res.json();
+      const data = res.data;
 
-      if (!res.ok) {
-        setError(data.error || "Execution failed. Please try again.");
+      if (!data.success) {
+        setError(data.message || "Execution failed. Please try again.");
         return;
       }
+      setResult(data.data);
 
       setResult(data);
     } catch (err) {
@@ -157,7 +156,8 @@ export default function CompilerPage() {
   const subHeaderBg = isDark ? "bg-[#090F1A] border-white/10" : "bg-slate-50 border-slate-200";
 
   return (
-    <div className={`min-h-screen font-sans flex flex-col ${containerBg}`}>
+    <ProtectedRoute allowedRoles={["candidate", "interviewer", "admin", "company", "superadmin"]}>
+      <div className={`min-h-screen font-sans flex flex-col ${containerBg}`}>
       
       {/* ── DEDICATED COMPILER TOP NAVIGATION BAR ───────────────────────────── */}
       <header className={`sticky top-0 z-50 flex items-center justify-between border-b px-5 py-3 ${headerBg}`}>
@@ -185,7 +185,7 @@ export default function CompilerPage() {
           </Link>
 
           <Link
-            href="/dashborads/candidateDashboard"
+            href="/dashboard/candidate"
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
               isDark ? "bg-white/5 border-white/10 text-slate-300 hover:text-white hover:bg-white/10" : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200"
             }`}
@@ -424,6 +424,7 @@ export default function CompilerPage() {
         </div>
 
       </main>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

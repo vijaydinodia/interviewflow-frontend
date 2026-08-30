@@ -1,3 +1,5 @@
+import axios from "axios";
+
 /**
  * Judge0 CE — Free public instance utility
  * Endpoint: https://ce.judge0.com (no API key required)
@@ -428,18 +430,8 @@ export async function executeCode({ sourceCode, language, stdin = "" }) {
   };
 
   try {
-    const submitRes = await fetch(`${judge0Url}/submissions?base64_encoded=true&wait=true`, {
-      method:  "POST",
-      headers,
-      body:    JSON.stringify(payload),
-    });
-
-    if (!submitRes.ok) {
-      const errText = await submitRes.text();
-      throw new Error(`Judge0 API error [${submitRes.status}]: ${errText}`);
-    }
-
-    const data = await submitRes.json();
+    const response = await axios.post(`${judge0Url}/submissions?base64_encoded=true&wait=true`, payload, { headers });
+    const data = response.data;
 
     const stdout        = decodeBase64(data.stdout);
     const stderr        = decodeBase64(data.stderr);

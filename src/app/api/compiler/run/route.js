@@ -77,27 +77,16 @@ export async function POST(req) {
     };
 
     // ── Submit and wait (synchronous mode) ────────────────────────────────
-    const submitRes = await fetch(
+    const submitRes = await axios.post(
       `${judge0Url}/submissions?base64_encoded=true&wait=true`,
+      payload,
       {
-        method:  "POST",
         headers,
-        body:    JSON.stringify(payload),
-        // 15-second timeout to prevent hanging
-        signal:  AbortSignal.timeout(15000),
+        timeout: 15000,
       }
     );
 
-    if (!submitRes.ok) {
-      const text = await submitRes.text();
-      console.error("Judge0 error:", submitRes.status, text);
-      return NextResponse.json(
-        { error: "Code execution service is unavailable right now. Please try again in a moment." },
-        { status: 502 }
-      );
-    }
-
-    let data = await submitRes.json();
+    let data = submitRes.data;
 
     // If the result is still queued / processing, poll once more
     if (data.token && data.status && data.status.id <= 2) {
@@ -116,7 +105,7 @@ export async function POST(req) {
 
   } catch (err) {
     // AbortError means our 15-second timeout fired
-    if (err.name === "AbortError" || err.name === "TimeoutError") {
+    if (err.code === "ECONNABORTED") {
       return NextResponse.json(
         { error: "Execution timed out. Please try again with shorter code." },
         { status: 504 }
@@ -135,11 +124,11 @@ export async function POST(req) {
 async function pollToken(token, headers, baseUrl) {
   await new Promise((r) => setTimeout(r, 1500));
   try {
-    const res = await fetch(
+    const res = await axios.get(
       `${baseUrl}/submissions/${token}?base64_encoded=true`,
-      { headers, signal: AbortSignal.timeout(10000) }
+      { headers, timeout: 10000 }
     );
-    if (res.ok) return res.json();
+    if (res.status === 200) return res.data;
   } catch {
     // ignore — just return empty so caller handles gracefully
   }

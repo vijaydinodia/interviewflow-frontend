@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Header from "@/components/Header";
+import Header from "@/components/Header/page";
 import { Monitor, Settings, Video, Shield, BarChart3, Users2, Search, LayoutDashboard, Users, Bell, FileText, HelpCircle, PhoneOff, Mic, ChevronDown } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
 

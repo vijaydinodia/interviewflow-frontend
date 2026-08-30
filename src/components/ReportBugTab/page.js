@@ -7,6 +7,7 @@ import {
   ChevronRight, Trash2, Eye, Tag
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
+import { api } from "@/api";
 
 export default function ReportBugTab({ user = null, isAdmin = false }) {
   const { isDark } = useTheme();
@@ -40,18 +41,15 @@ export default function ReportBugTab({ user = null, isAdmin = false }) {
   const fetchBugs = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("interviewflow_token");
       const isSuperOrAdmin = isAdmin || user?.role?.toLowerCase().includes("admin");
       const url = isSuperOrAdmin
-        ? "http://localhost:5000/api/bugs/all"
+        ? "/bugs/all"
         : user?.userId || user?.email
-        ? `http://localhost:5000/api/bugs/my-bugs?userId=${user?.userId || ""}&userEmail=${user?.email || ""}`
-        : "http://localhost:5000/api/bugs/all";
+        ? `/bugs/my-bugs?userId=${user?.userId || ""}&userEmail=${user?.email || ""}`
+        : "/bugs/all";
 
-      const res = await fetch(url, {
-        headers: { Authorization: token ? `Bearer ${token}` : "" },
-      });
-      const data = await res.json();
+      const res = await api.get(url);
+      const data = res.data;
       console.log("[ReportBugTab] fetchBugs response:", data);
       if (data.success && Array.isArray(data.data)) {
         setBugs(data.data);
@@ -96,7 +94,6 @@ export default function ReportBugTab({ user = null, isAdmin = false }) {
     setMsg(null);
 
     try {
-      const token = localStorage.getItem("interviewflow_token");
       const payload = {
         userId: user?.userId || null,
         userName: user?.fullName || user?.name || user?.email || "Anonymous",
@@ -110,16 +107,8 @@ export default function ReportBugTab({ user = null, isAdmin = false }) {
         pageUrl,
       };
 
-      const res = await fetch("http://localhost:5000/api/bugs/submit", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
+      const res = await api.post("/bugs/submit", payload);
+      const data = res.data;
 
       if (data.success) {
         setMsg({ type: "success", text: "Bug report submitted successfully!" });
@@ -141,16 +130,8 @@ export default function ReportBugTab({ user = null, isAdmin = false }) {
 
   const handleStatusChange = async (bugId, newStatus) => {
     try {
-      const token = localStorage.getItem("interviewflow_token");
-      const res = await fetch(`http://localhost:5000/api/bugs/${bugId}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      const data = await res.json();
+      const res = await api.patch(`/bugs/${bugId}/status`, { status: newStatus });
+      const data = res.data;
       if (data.success) {
         fetchBugs();
       }
@@ -162,12 +143,8 @@ export default function ReportBugTab({ user = null, isAdmin = false }) {
   const handleDeleteBug = async (bugId) => {
     if (!window.confirm("Are you sure you want to permanently delete this bug report?")) return;
     try {
-      const token = localStorage.getItem("interviewflow_token");
-      const res = await fetch(`http://localhost:5000/api/bugs/${bugId}`, {
-        method: "DELETE",
-        headers: { Authorization: token ? `Bearer ${token}` : "" },
-      });
-      const data = await res.json();
+      const res = await api.delete(`/bugs/${bugId}`);
+      const data = res.data;
       if (data.success) {
         setMsg({ type: "success", text: "Bug report deleted successfully." });
         if (selectedBug && (selectedBug.bugId === bugId || selectedBug.bug_id === bugId)) {

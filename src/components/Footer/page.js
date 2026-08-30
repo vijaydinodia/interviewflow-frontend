@@ -153,17 +153,17 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/dashborads/candidateDashboard" className="hover:text-cyan-300 transition-colors flex items-center gap-1.5">
+                <Link href="/dashboard/candidate" className="hover:text-cyan-300 transition-colors flex items-center gap-1.5">
                   <BookOpen className="w-3 h-3 text-cyan-400" /> 1,000+ DSA Problem Bank
                 </Link>
               </li>
               <li>
-                <Link href="/dashborads/candidateDashboard" className="hover:text-cyan-300 transition-colors flex items-center gap-1.5">
+                <Link href="/dashboard/candidate" className="hover:text-cyan-300 transition-colors flex items-center gap-1.5">
                   <Video className="w-3 h-3 text-cyan-400" /> 1:1 Live Interview Rooms
                 </Link>
               </li>
               <li>
-                <Link href="/dashborads/candidateDashboard" className="hover:text-cyan-300 transition-colors flex items-center gap-1.5">
+                <Link href="/dashboard/candidate" className="hover:text-cyan-300 transition-colors flex items-center gap-1.5">
                   <Compass className="w-3 h-3 text-cyan-400" /> 1:1 Guidance &amp; Mentorship
                 </Link>
               </li>
@@ -182,22 +182,22 @@ export default function Footer() {
             </h4>
             <ul className="flex flex-col gap-2.5 text-xs text-slate-300 font-bold">
               <li>
-                <Link href="/dashborads/candidateDashboard" className="hover:text-teal-300 transition-colors">
+                <Link href="/dashboard/candidate" className="hover:text-teal-300 transition-colors">
                   Candidate Portal
                 </Link>
               </li>
               <li>
-                <Link href="/dashborads/interviewerDashboard" className="hover:text-teal-300 transition-colors">
+                <Link href="/dashboard/interviewer" className="hover:text-teal-300 transition-colors">
                   Interviewer Dashboard
                 </Link>
               </li>
               <li>
-                <Link href="/dashborads/adminDashboard" className="hover:text-teal-300 transition-colors">
+                <Link href="/dashboard/admin" className="hover:text-teal-300 transition-colors">
                   Company &amp; Recruiter Portal
                 </Link>
               </li>
               <li>
-                <Link href="/dashborads/superAdminDashborad" className="hover:text-teal-300 transition-colors">
+                <Link href="/dashboard/super-admin" className="hover:text-teal-300 transition-colors">
                   Super Admin Management
                 </Link>
               </li>

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+import Header from "@/components/Header/page";
+import Footer from "@/components/Footer/page";
 import Link from "next/link";
 import {
   Sparkles, ArrowRight, Video as VideoIcon, ShieldCheck, Code2, Play, Users,
@@ -53,13 +53,13 @@ const CORE_FEATURES = [
     borderColor: "hover:border-cyan-400/50",
     desc: "Browse a rich collection of 1,000+ curated DSA coding problems with HTML problem descriptions, constraints, examples, topic tags, hints, and language starter snippets.",
     bullets: [
-      "Filtered by difficulty (Easy, Medium, Hard) and topic tags",
-      "Pre-loaded starter code snippets for 8 programming languages",
-      "Sample test case inputs prefilled into compiler stdin",
-      "Interactive dual-panel workspace layout"
+      "1,000+ top DSA problems categorized by topic, difficulty & frequency",
+      "Embedded Monaco editor with dark theme & syntax highlighting",
+      "Instant code execution with time & memory telemetry details",
+      "Step-by-step problem hints & comprehensive topic tag breakdown"
     ],
     ctaText: "Solve DSA Questions",
-    ctaLink: "/dashborads/candidateDashboard",
+    ctaLink: "/dashboard/candidate",
   },
   {
     id: "1on1",
@@ -79,7 +79,7 @@ const CORE_FEATURES = [
       "Automated interviewer assignment and request dispatching"
     ],
     ctaText: "Start Live 1:1 Room",
-    ctaLink: "/dashborads/candidateDashboard",
+    ctaLink: "/dashboard/candidate",
   },
   {
     id: "guidance",
@@ -99,7 +99,7 @@ const CORE_FEATURES = [
       "Direct request dispatching with interviewer confirmation"
     ],
     ctaText: "Book Guidance Session",
-    ctaLink: "/dashborads/candidateDashboard",
+    ctaLink: "/dashboard/candidate",
   },
 ];
 
@@ -110,7 +110,7 @@ const ROLE_PORTALS = [
     icon: Users,
     color: "from-sky-500 to-cyan-500",
     desc: "Practice 1,000+ DSA questions, test code in FlowCode compiler, request live 1:1 mock interviews, and book mentorship sessions.",
-    link: "/dashborads/candidateDashboard",
+    link: "/dashboard/candidate",
   },
   {
     role: "Interviewers",
@@ -118,7 +118,7 @@ const ROLE_PORTALS = [
     icon: Code2,
     color: "from-emerald-500 to-teal-500",
     desc: "Accept candidate interview requests, set availability, conduct live coding sessions, evaluate scorecards, and toggle mentor status.",
-    link: "/dashborads/interviewerDashboard",
+    link: "/dashboard/interviewer",
   },
   {
     role: "Companies",
@@ -126,7 +126,7 @@ const ROLE_PORTALS = [
     icon: Building2,
     color: "from-purple-500 to-indigo-500",
     desc: "Schedule technical interview rounds, manage company interviewers, view candidate scorecards, and streamline tech recruitment.",
-    link: "/dashborads/adminDashboard",
+    link: "/dashboard/admin",
   },
   {
     role: "Super Admin",
@@ -134,7 +134,7 @@ const ROLE_PORTALS = [
     icon: ShieldCheck,
     color: "from-amber-500 to-orange-500",
     desc: "Full backend-driven pagination, user management (Name, Email, Role, Status, Registered Date), and platform audit controls.",
-    link: "/dashborads/superAdminDashborad",
+    link: "/dashboard/super-admin",
   },
 ];
 
@@ -201,7 +201,7 @@ export default function HomePage() {
           {/* Call to Actions */}
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-2">
             <Link
-              href="/dashborads/candidateDashboard"
+              href="/dashboard/candidate"
               className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 text-black font-black text-sm flex items-center gap-2 hover:brightness-110 shadow-xl shadow-cyan-500/20 active:scale-95 transition-all"
             >
               <span>Explore Candidate Dashboard</span>
@@ -528,7 +528,7 @@ export default function HomePage() {
 
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
             <Link
-              href="/dashborads/candidateDashboard"
+              href="/dashboard/candidate"
               className="px-8 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 text-black font-black text-sm shadow-2xl hover:brightness-110 transition-all"
             >
               Get Started Now — Candidate Portal

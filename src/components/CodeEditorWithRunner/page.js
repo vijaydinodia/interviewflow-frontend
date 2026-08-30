@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { JUDGE0_LANGUAGES } from "@/lib/judge0";
 import { useTheme } from "@/custom_hook/UseTheme";
+import { api } from "@/api";
 
 // Dynamically import Monaco Editor to prevent SSR window issues in Next.js
 const Editor = dynamic(() => import("@monaco-editor/react"), {
@@ -107,17 +108,13 @@ export default function CodeEditorWithRunner({
     });
 
     try {
-      const response = await fetch("/api/code/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sourceCode: code,
-          language,
-          stdin,
-        }),
+      const response = await api.post("/code/execute", {
+        sourceCode: code,
+        language,
+        stdin,
       });
 
-      const data = await response.json();
+      const data = response.data;
       setOutput(data);
 
       // Auto switch to errors tab if compilation or runtime error occurred

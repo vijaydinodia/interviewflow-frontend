@@ -10,6 +10,7 @@ import {
   ChevronLeft, ChevronRight, CheckCircle2, ShieldCheck
 } from "lucide-react";
 import AuthLayout from "../_components/AuthLayout";
+import GuestRoute from "@/components/GuestRoute/page";
 import { useTheme } from "@/custom_hook/UseTheme";
 import { api } from "@/api";
 
@@ -88,7 +89,7 @@ const initialData = {
   email: "",
   password: "",
   phone: "",
-  // Interviewer & Company specific
+  // Interviewer specific
   title: "Senior Software Engineer",
   company: "",
   experience: "5+ Years",
@@ -98,6 +99,13 @@ const initialData = {
   linkedinUrl: "",
   bio: "",
   agreeTerms: false,
+  // Company-specific fields
+  companyName: "",
+  industry: "",
+  website: "",
+  location: "",
+  companySize: "",
+  tagline: "",
 };
 
 export default function RegisterPage() {
@@ -110,6 +118,9 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState({});
   const [showPwd, setShowPwd] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // Company registration success state
+  const [companyRegistered, setCompanyRegistered] = useState(false);
+  const [registeredCompanyEmail, setRegisteredCompanyEmail] = useState("");
 
   const [customDays, setCustomDays] = useState("Mon-Fri");
   const [customSlotStart, setCustomSlotStart] = useState("06:00 PM");
@@ -180,10 +191,10 @@ export default function RegisterPage() {
 
   const getDashboardUrl = (role) => {
     const r = (role || "").toLowerCase();
-    if (r === "superadmin") return "/dashborads/superAdminDashborad";
-    if (r === "admin" || r === "company") return "/dashborads/adminDashboard";
-    if (r === "interviewer") return "/dashborads/interviewerDashboard";
-    return "/dashborads/candidateDashboard";
+    if (r === "superadmin") return "/dashboard/super-admin";
+    if (r === "admin" || r === "company") return "/dashboard/admin";
+    if (r === "interviewer") return "/dashboard/interviewer";
+    return "/dashboard/candidate";
   };
 
   const validateStep = (step) => {
@@ -194,13 +205,18 @@ export default function RegisterPage() {
       if ((selectedRole === "candidate" || selectedRole === "interviewer") && formData.password.length < 8) {
         errs.password = "Password must be at least 8 characters.";
       }
-      if (selectedRole === "company" && !formData.company.trim()) {
-        errs.company = "Company name is required.";
+      if (selectedRole === "company" && !formData.companyName.trim()) {
+        errs.companyName = "Company name is required.";
       }
       if (selectedRole === "candidate" && !formData.agreeTerms) {
         errs.agreeTerms = "You must agree to the Terms of Service.";
       }
+      // Company step 1 validation — only basic fields
+      if (selectedRole === "company" && !formData.agreeTerms) {
+        errs.agreeTerms = "You must agree to the Terms of Service.";
+      }
     } else if (step === 2) {
+      // Interviewer step 2
       if (!formData.company.trim()) errs.company = "Company name is required.";
       if (!formData.title.trim()) errs.title = "Current job title is required.";
     } else if (step === 3) {
@@ -255,7 +271,7 @@ export default function RegisterPage() {
         phone: formData.phone || null,
       };
 
-      // Candidate and Interviewer provide their own password
+      // Candidate and Interviewer provide their own password; company gets auto-generated
       if (selectedRole === "candidate" || selectedRole === "interviewer") {
         payload.password = formData.password;
       }
@@ -270,17 +286,31 @@ export default function RegisterPage() {
         payload.linkedinUrl = formData.linkedinUrl;
         payload.bio = formData.bio;
       } else if (selectedRole === "company") {
-        payload.companyName = formData.company;
+        // Send all company detail fields
+        payload.companyName = formData.companyName;
+        payload.industry = formData.industry || null;
+        payload.website = formData.website || null;
+        payload.location = formData.location || null;
+        payload.companySize = formData.companySize || null;
+        payload.tagline = formData.tagline || null;
       }
 
       const response = await api.post("/user/create-user", payload);
       const data = response.data;
 
       if (data && data.success) {
+        // Company registrations are pending approval — show success screen, no auto-login
+        if (selectedRole === "company" || data.isPendingApproval) {
+          setRegisteredCompanyEmail(formData.email);
+          setCompanyRegistered(true);
+          setIsLoading(false);
+          return;
+        }
+
         const createdUser = data.data || {};
         const userPassword = createdUser.plainPassword || formData.password;
 
-        // Auto-login to obtain session and JWT token
+        // Auto-login to obtain session and JWT token (candidate / interviewer only)
         try {
           const loginRes = await api.post("/user/login", {
             email: formData.email,
@@ -291,7 +321,7 @@ export default function RegisterPage() {
             if (loginRes.data.token) {
               localStorage.setItem("interviewflow_token", loginRes.data.token);
             }
-            const userRole = loginRes.data.user?.role || (selectedRole === "company" ? "admin" : selectedRole);
+            const userRole = loginRes.data.user?.role || selectedRole;
             const sessionUser = {
               fullName: formData.fullName,
               email: formData.email,
@@ -316,44 +346,9 @@ export default function RegisterPage() {
         return;
       }
 
-      // Local storage fallback for demonstration
-      try {
-        const existingRaw = localStorage.getItem("interviewflow_users");
-        let usersList = existingRaw ? JSON.parse(existingRaw) : [];
-        
-        const duplicate = usersList.find((u) => u.email.toLowerCase() === formData.email.toLowerCase());
-        if (duplicate) {
-          setErrors({ form: "An account with this email already exists. Please log in." });
-          return;
-        }
-
-        const newUser = {
-          fullName: formData.fullName,
-          email: formData.email,
-          role: selectedRole,
-          ...(selectedRole === "interviewer" && {
-            title: formData.title,
-            company: formData.company,
-            experience: formData.experience,
-            specialization: formData.specialization,
-            availability: formData.availability,
-          }),
-        };
-        usersList.push(newUser);
-        localStorage.setItem("interviewflow_users", JSON.stringify(usersList));
-
-        const sessionUser = {
-          fullName: formData.fullName,
-          email: formData.email,
-          role: selectedRole,
-        };
-        localStorage.setItem("interviewflow_session", JSON.stringify(sessionUser));
-        router.push("/login");
-        return;
-      } catch (fallbackErr) {
-        setErrors({ form: "Failed to create account. Please try again." });
-      }
+      setErrors({ form: "Failed to create account. Please check your connection and try again." });
     }
+    setIsLoading(false);
   };
 
   // ══════════════════════════════════════════════════════════════════════
@@ -361,7 +356,8 @@ export default function RegisterPage() {
   // ══════════════════════════════════════════════════════════════════════
   if (selectedRole === "interviewer" && interviewerStep >= 2) {
     return (
-      <div className="min-h-screen w-full bg-[#060B11] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black">
+      <GuestRoute>
+        <div className="min-h-screen w-full bg-[#060B11] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black">
         {/* Top Navbar */}
         <header className="w-full border-b border-white/10 bg-[#0B151E]/90 backdrop-blur-md px-6 sm:px-12 py-4 flex items-center justify-between sticky top-0 z-40">
           <div className="flex items-center gap-3">
@@ -747,15 +743,109 @@ export default function RegisterPage() {
 
           </div>
         </main>
-      </div>
+        </div>
+      </GuestRoute>
     );
   }
 
   // ══════════════════════════════════════════════════════════════════════
   // STANDARD AUTH CARD (CANDIDATE, COMPANY, AND INTERVIEWER STEP 1)
   // ══════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════
+  // COMPANY REGISTRATION SUCCESS / PENDING SCREEN
+  // ══════════════════════════════════════════════════════════════════════
+  if (companyRegistered) {
+    return (
+      <GuestRoute>
+        <AuthLayout>
+          <div className="flex flex-col items-center text-center space-y-5">
+            {/* Animated envelope / mail icon */}
+            <div className={`flex h-20 w-20 items-center justify-center rounded-full shadow-xl ${
+              isDark ? "bg-gradient-to-br from-amber-400 to-orange-500 shadow-amber-500/30" : "bg-gradient-to-br from-indigo-500 to-purple-600 shadow-indigo-500/30"
+            }`}>
+              <Mail className="h-10 w-10 text-white" />
+            </div>
+
+            <div>
+              <h2 className={`text-xl sm:text-2xl font-extrabold mb-1 ${
+                isDark ? "text-white" : "text-slate-900"
+              }`}>
+                Check Your Email! 📬
+              </h2>
+              <p className={`text-xs sm:text-sm ${
+                isDark ? "text-slate-300" : "text-slate-500"
+              }`}>
+                Your company registration request has been submitted to the Super Admin.
+              </p>
+            </div>
+
+            {/* Status card */}
+            <div className={`w-full rounded-2xl p-4 border text-left space-y-3 ${
+              isDark ? "bg-amber-500/10 border-amber-500/30" : "bg-amber-50 border-amber-200"
+            }`}>
+              <div className="flex items-center gap-2">
+                <div className={`h-2.5 w-2.5 rounded-full animate-pulse ${
+                  isDark ? "bg-amber-400" : "bg-amber-500"
+                }`} />
+                <span className={`text-xs font-extrabold uppercase tracking-wide ${
+                  isDark ? "text-amber-300" : "text-amber-700"
+                }`}>
+                  Pending Super Admin Approval
+                </span>
+              </div>
+              <p className={`text-xs leading-relaxed ${
+                isDark ? "text-slate-300" : "text-slate-600"
+              }`}>
+                We have sent a confirmation email to{" "}
+                <span className={`font-bold ${
+                  isDark ? "text-amber-300" : "text-amber-700"
+                }`}>{registeredCompanyEmail}</span>{" "}
+                with your registration details. Once approved, you will receive your login credentials via email.
+              </p>
+            </div>
+
+            {/* What happens next */}
+            <div className={`w-full rounded-2xl p-4 border text-left space-y-2.5 ${
+              isDark ? "bg-[#080E18] border-white/10" : "bg-slate-50 border-slate-200"
+            }`}>
+              <p className={`text-xs font-extrabold uppercase tracking-wide mb-1 ${
+                isDark ? "text-slate-300" : "text-slate-600"
+              }`}>What happens next?</p>
+              {[
+                { step: "1", text: "Super Admin reviews your registration request" },
+                { step: "2", text: "You receive login credentials via email upon approval" },
+                { step: "3", text: "Sign in and start scheduling interviews" },
+              ].map((item) => (
+                <div key={item.step} className="flex items-center gap-3">
+                  <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-extrabold ${
+                    isDark ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-indigo-100 text-indigo-600 border border-indigo-200"
+                  }`}>{item.step}</div>
+                  <span className={`text-xs ${
+                    isDark ? "text-slate-300" : "text-slate-600"
+                  }`}>{item.text}</span>
+                </div>
+              ))}
+            </div>
+
+            <Link
+              href="/login"
+              className={`w-full text-center py-3 rounded-xl text-sm font-extrabold shadow-lg transition-all ${
+                isDark
+                  ? "bg-gradient-to-r from-sky-400 via-cyan-400 to-teal-400 text-[#0B151E] hover:brightness-110"
+                  : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:opacity-95"
+              }`}
+            >
+              Go to Login Page
+            </Link>
+          </div>
+        </AuthLayout>
+      </GuestRoute>
+    );
+  }
+
   return (
-    <AuthLayout>
+    <GuestRoute>
+      <AuthLayout>
       <div className="flex items-center gap-2 mb-3">
         <div className={`flex h-8 w-8 items-center justify-center rounded-xl font-extrabold text-sm shadow ${
           isDark ? "bg-gradient-to-tr from-sky-400 via-cyan-400 to-teal-400 text-[#0B151E]" : "bg-gradient-to-tr from-indigo-600 to-purple-600 text-white"
@@ -844,29 +934,123 @@ export default function RegisterPage() {
           )}
         </div>
 
-        {/* Company Name (For Company Role) */}
+        {/* Company Detail Fields (For Company Role) */}
         {selectedRole === "company" && (
-          <div>
-            <div className="relative">
-              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+          <div className="space-y-3">
+            {/* Company Name */}
+            <div>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  name="companyName"
+                  value={formData.companyName}
+                  onChange={handleChange}
+                  placeholder="Company / Organization Name *"
+                  className={`w-full rounded-xl border pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-colors ${
+                    errors.companyName
+                      ? "border-red-400 bg-red-500/10 text-white"
+                      : isDark
+                      ? "border-white/10 bg-[#080E18] text-white placeholder:text-slate-500 focus:border-cyan-400"
+                      : "border-slate-200 bg-slate-50 text-slate-900 focus:border-indigo-400"
+                  }`}
+                />
+              </div>
+              {errors.companyName && (
+                <p className={`text-[11px] mt-1 font-medium pl-1 ${isDark ? "text-red-400" : "text-red-500"}`}>{errors.companyName}</p>
+              )}
+            </div>
+
+            {/* Industry & Company Size */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <select
+                  name="industry"
+                  value={formData.industry}
+                  onChange={handleChange}
+                  className={`w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none transition-colors ${
+                    isDark
+                      ? "border-white/10 bg-[#080E18] text-white focus:border-cyan-400"
+                      : "border-slate-200 bg-slate-50 text-slate-900 focus:border-indigo-400"
+                  }`}
+                >
+                  <option value="">Industry (Optional)</option>
+                  <option value="Technology">Technology</option>
+                  <option value="Finance & Banking">Finance & Banking</option>
+                  <option value="Healthcare">Healthcare</option>
+                  <option value="E-Commerce">E-Commerce</option>
+                  <option value="Education">Education</option>
+                  <option value="Manufacturing">Manufacturing</option>
+                  <option value="Consulting">Consulting</option>
+                  <option value="Startup">Startup</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <select
+                  name="companySize"
+                  value={formData.companySize}
+                  onChange={handleChange}
+                  className={`w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none transition-colors ${
+                    isDark
+                      ? "border-white/10 bg-[#080E18] text-white focus:border-cyan-400"
+                      : "border-slate-200 bg-slate-50 text-slate-900 focus:border-indigo-400"
+                  }`}
+                >
+                  <option value="">Company Size</option>
+                  <option value="1-10">1-10 Employees</option>
+                  <option value="11-50">11-50 Employees</option>
+                  <option value="51-200">51-200 Employees</option>
+                  <option value="201-500">201-500 Employees</option>
+                  <option value="500+">500+ Employees</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Website & Location */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="relative">
+                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                <input
+                  type="url"
+                  name="website"
+                  value={formData.website}
+                  onChange={handleChange}
+                  placeholder="Website (e.g. https://company.com)"
+                  className={`w-full rounded-xl border pl-9 pr-3 py-2.5 text-sm focus:outline-none transition-colors ${
+                    isDark
+                      ? "border-white/10 bg-[#080E18] text-white placeholder:text-slate-500 focus:border-cyan-400"
+                      : "border-slate-200 bg-slate-50 text-slate-900 focus:border-indigo-400"
+                  }`}
+                />
+              </div>
               <input
                 type="text"
-                name="company"
-                value={formData.company}
+                name="location"
+                value={formData.location}
                 onChange={handleChange}
-                placeholder="Company / Organization Name"
-                className={`w-full rounded-xl border pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-colors ${
-                  errors.company
-                    ? "border-red-400 bg-red-500/10 text-white"
-                    : isDark
+                placeholder="HQ Location (e.g. Bengaluru, India)"
+                className={`w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none transition-colors ${
+                  isDark
                     ? "border-white/10 bg-[#080E18] text-white placeholder:text-slate-500 focus:border-cyan-400"
                     : "border-slate-200 bg-slate-50 text-slate-900 focus:border-indigo-400"
                 }`}
               />
             </div>
-            {errors.company && (
-              <p className={`text-[11px] mt-1 font-medium pl-1 ${isDark ? "text-red-400" : "text-red-500"}`}>{errors.company}</p>
-            )}
+
+            {/* Tagline */}
+            <input
+              type="text"
+              name="tagline"
+              value={formData.tagline}
+              onChange={handleChange}
+              placeholder="Company tagline or brief description (Optional)"
+              className={`w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none transition-colors ${
+                isDark
+                  ? "border-white/10 bg-[#080E18] text-white placeholder:text-slate-500 focus:border-cyan-400"
+                  : "border-slate-200 bg-slate-50 text-slate-900 focus:border-indigo-400"
+              }`}
+            />
           </div>
         )}
 
@@ -986,14 +1170,14 @@ export default function RegisterPage() {
           </div>
         )}
 
-        {/* Passwordless Auto-Gen Banner for Company */}
+        {/* Pending Approval Banner for Company */}
         {selectedRole === "company" && (
-          <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-start gap-2.5 text-xs">
-            <Lock className="h-4 w-4 text-cyan-400 shrink-0 mt-0.5" />
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2.5 text-xs">
+            <ShieldCheck className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold text-cyan-300">No Password Required Now:</span>
-              <p className="text-slate-300 text-[11px] mt-0.5">
-                An 8-character secure password will be generated using UUID and delivered directly to your company email address.
+              <span className={`font-bold ${isDark ? "text-amber-300" : "text-amber-700"}`}>Approval Required:</span>
+              <p className={`text-[11px] mt-0.5 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                Your registration request will be sent to the Super Admin for review. Upon approval, your login credentials will be emailed to you automatically.
               </p>
             </div>
           </div>
@@ -1039,12 +1223,14 @@ export default function RegisterPage() {
               : "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-indigo-500/30 hover:opacity-95"
           }`}
         >
-          {isLoading ? (
-            "Creating Account…"
+        {isLoading ? (
+            selectedRole === "company" ? "Submitting Request…" : "Creating Account…"
           ) : selectedRole === "interviewer" ? (
             <>
               Continue to Full-Page Setup <ArrowRight className="h-4 w-4" />
             </>
+          ) : selectedRole === "company" ? (
+            <>Submit for Approval <ArrowRight className="h-4 w-4" /></>
           ) : (
             ROLES.find((r) => r.id === selectedRole)?.btnText || "Create Account"
           )}
@@ -1062,6 +1248,7 @@ export default function RegisterPage() {
         <Lock className="h-3 w-3" />
         Your data is protected with enterprise-grade encryption.
       </div>
-    </AuthLayout>
+      </AuthLayout>
+    </GuestRoute>
   );
 }

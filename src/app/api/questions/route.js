@@ -1,71 +1,30 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
 
-// Cached memory cache for fast response times
-let cachedQuestions = null;
-
-function loadQuestions() {
-  if (cachedQuestions) return cachedQuestions;
-
-  const possiblePaths = [
-    path.join(process.cwd(), "../interviewflow-backend/data/leetcode_questions_1000.json"),
-    path.join(process.cwd(), "src/data/leetcode_questions_1000.json"),
-    "C:/Users/acer/Desktop/InterviewFlow/interviewflow-backend/data/leetcode_questions_1000.json",
-  ];
-
-  for (const filePath of possiblePaths) {
-    try {
-      if (fs.existsSync(filePath)) {
-        const fileData = fs.readFileSync(filePath, "utf-8");
-        cachedQuestions = JSON.parse(fileData);
-        return cachedQuestions;
-      }
-    } catch (err) {
-      console.error(`Error reading ${filePath}:`, err.message);
-    }
-  }
-
-  return [];
-}
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
-    const difficulty = searchParams.get("difficulty");
-    const search = searchParams.get("search")?.toLowerCase();
-    const tag = searchParams.get("tag")?.toLowerCase();
 
-    let questions = loadQuestions();
+    // Build query string from incoming params
+    const params = new URLSearchParams();
+    if (searchParams.get("difficulty")) params.set("difficulty", searchParams.get("difficulty"));
+    if (searchParams.get("search")) params.set("search", searchParams.get("search"));
+    if (searchParams.get("tag")) params.set("tag", searchParams.get("tag"));
 
-    if (difficulty && difficulty !== "all") {
-      questions = questions.filter(
-        (q) => q.difficulty?.toLowerCase() === difficulty.toLowerCase()
-      );
-    }
+    const queryStr = params.toString();
+    const backendUrl = `${API_BASE}/questions${queryStr ? `?${queryStr}` : ""}`;
 
-    if (search) {
-      questions = questions.filter(
-        (q) =>
-          q.title?.toLowerCase().includes(search) ||
-          q.frontendId?.toString().includes(search) ||
-          q.topicTags?.some((t) => t.name?.toLowerCase().includes(search))
-      );
-    }
-
-    if (tag) {
-      questions = questions.filter((q) =>
-        q.topicTags?.some((t) => t.slug?.toLowerCase() === tag || t.name?.toLowerCase() === tag)
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      count: questions.length,
-      data: questions,
+    const response = await fetch(backendUrl, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
     });
+
+    const data = await response.json();
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("GET /api/questions error:", error.message);
+    console.error("GET /api/questions proxy error:", error.message);
     return NextResponse.json(
       { success: false, message: "Failed to load questions.", error: error.message },
       { status: 500 }

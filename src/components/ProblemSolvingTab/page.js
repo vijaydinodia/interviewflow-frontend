@@ -9,10 +9,11 @@ import {
   Maximize2, Minimize2, Check, Copy, Tag
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
+import { api } from "@/api";
 
 // Dynamically import CodeEditorWithRunner
 const CodeEditorWithRunner = dynamic(
-  () => import("@/components/CodeEditorWithRunner"),
+  () => import("@/components/CodeEditorWithRunner/page"),
   {
     ssr: false,
     loading: () => (
@@ -57,14 +58,21 @@ export default function ProblemSolvingTab() {
     async function fetchQuestions() {
       try {
         setLoading(true);
-        const res = await fetch("/api/questions");
-        const json = await res.json();
-        if (json.success && json.data) {
-          setQuestions(json.data);
-          const twoSumIdx = json.data.findIndex((q) => q.frontendId === "1" || q.titleSlug === "two-sum");
+        setError(null);
+        let res;
+        try {
+          res = await api.get("/questions");
+        } catch (err1) {
+          res = await api.get("/api/questions");
+        }
+        const json = res.data;
+        const list = json.success && Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+        if (list.length > 0) {
+          setQuestions(list);
+          const twoSumIdx = list.findIndex((q) => q.frontendId === "1" || q.titleSlug === "two-sum");
           if (twoSumIdx !== -1) {
             setSelectedIndex(twoSumIdx);
-          } else if (json.data.length > 0) {
+          } else {
             setSelectedIndex(0);
           }
         } else {
@@ -84,7 +92,7 @@ export default function ProblemSolvingTab() {
 
   // Filtered list for Question Bank view mode
   const filteredQuestions = useMemo(() => {
-    return questions.filter((q) => {
+    const list = questions.filter((q) => {
       const matchDiff = difficultyFilter === "all" || q.difficulty?.toLowerCase() === difficultyFilter.toLowerCase();
       const matchSearch =
         !search ||
@@ -96,6 +104,13 @@ export default function ProblemSolvingTab() {
         q.topicTags?.some((t) => t.slug?.toLowerCase() === selectedTag.toLowerCase());
 
       return matchDiff && matchSearch && matchTag;
+    });
+
+    return list.sort((a, b) => {
+      const numA = parseInt(a.frontendId, 10);
+      const numB = parseInt(b.frontendId, 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return (a.frontendId || "").localeCompare(b.frontendId || "");
     });
   }, [questions, search, difficultyFilter, selectedTag]);
 

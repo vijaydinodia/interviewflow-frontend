@@ -35,10 +35,10 @@ export default function Header() {
 
   const getDashboardUrl = (role) => {
     const r = (role || "").toLowerCase();
-    if (r === "superadmin") return "/dashborads/superAdminDashborad";
-    if (r === "admin" || r === "company") return "/dashborads/adminDashboard";
-    if (r === "interviewer") return "/dashborads/interviewerDashboard";
-    return "/dashborads/candidateDashboard";
+    if (r === "superadmin") return "/dashboard/super-admin";
+    if (r === "admin" || r === "company") return "/dashboard/admin";
+    if (r === "interviewer") return "/dashboard/interviewer";
+    return "/dashboard/candidate";
   };
 
   const dashboardUrl = user ? getDashboardUrl(user.role) : "/login";
