@@ -141,8 +141,8 @@ export default function SystemMonitoringTab({ user = null }) {
   };
 
   const handleDownloadLog = (filename) => {
-    const token = localStorage.getItem("interviewflow_token");
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+    const token = typeof window !== "undefined" ? localStorage.getItem("interviewflow_token") : "";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
     window.open(`${apiUrl}/api/monitoring/logs/download/${filename}?token=${token}`, "_blank");
   };
 
@@ -150,8 +150,8 @@ export default function SystemMonitoringTab({ user = null }) {
     ? "bg-gradient-to-b from-[#0F172A]/90 to-[#0B1220]/90 border-white/10"
     : "bg-white border-slate-200 shadow-sm";
 
-  const cpu = data.system?.cpu || { usagePercentage: 0, status: "HEALTHY", cores: 4, model: "CPU" };
-  const memory = data.system?.memory || { usagePercentage: 0, status: "HEALTHY", usedGB: "0 GB", totalGB: "0 GB" };
+  const cpu = data.system?.cpu || { usagePercentage: 0, status: "healthy", cores: 1, model: "Virtual CPU" };
+  const memory = data.system?.memory || { usagePercentage: 0, status: "healthy", usedGB: "0 GB", totalGB: "0 GB" };
   const processInfo = data.process?.process || { pid: "-", nodeVersion: "-", uptimeFormatted: "-" };
   const processMem = data.process?.memory || { heapUsed: "0 MB", heapTotal: "0 MB", rss: "0 MB" };
   const perf = data.performance?.summary || { totalRequests: 0, avgResponseTimeMs: 0, overallSuccessRate: "100%" };
@@ -284,27 +284,32 @@ export default function SystemMonitoringTab({ user = null }) {
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">CPU Utilization</span>
                 <div className={`p-2 rounded-xl border ${
-                  cpu.status === "CRITICAL" ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
-                  cpu.status === "WARNING" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                  String(cpu.status).toLowerCase() === "critical" ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
+                  String(cpu.status).toLowerCase() === "warning" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                  String(cpu.status).toLowerCase() === "unavailable" ? "bg-slate-500/10 text-slate-400 border-slate-500/20" :
                   "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
                 }`}>
                   <Cpu className="h-4 w-4" />
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <p className="text-2xl font-black text-white">{cpu.usagePercentage}%</p>
-                <span className={`text-[11px] font-bold ${
-                  cpu.status === "CRITICAL" ? "text-rose-400" :
-                  cpu.status === "WARNING" ? "text-amber-400" : "text-emerald-400"
+                <p className="text-2xl font-black text-white">
+                  {String(cpu.status).toLowerCase() === "unavailable" ? "Unavailable" : `${cpu.usagePercentage}%`}
+                </p>
+                <span className={`text-[11px] font-bold uppercase ${
+                  String(cpu.status).toLowerCase() === "critical" ? "text-rose-400" :
+                  String(cpu.status).toLowerCase() === "warning" ? "text-amber-400" :
+                  String(cpu.status).toLowerCase() === "unavailable" ? "text-slate-400" : "text-emerald-400"
                 }`}>{cpu.status}</span>
               </div>
               <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${
-                    cpu.status === "CRITICAL" ? "bg-rose-500" :
-                    cpu.status === "WARNING" ? "bg-amber-400" : "bg-cyan-400"
+                    String(cpu.status).toLowerCase() === "critical" ? "bg-rose-500" :
+                    String(cpu.status).toLowerCase() === "warning" ? "bg-amber-400" :
+                    String(cpu.status).toLowerCase() === "unavailable" ? "bg-slate-600" : "bg-cyan-400"
                   }`}
-                  style={{ width: `${Math.min(100, Math.max(5, cpu.usagePercentage))}%` }}
+                  style={{ width: `${Math.min(100, Math.max(5, cpu.usagePercentage || 5))}%` }}
                 />
               </div>
             </div>
@@ -313,18 +318,26 @@ export default function SystemMonitoringTab({ user = null }) {
             <div className={`p-5 rounded-2xl border ${cardBg} space-y-3 relative overflow-hidden`}>
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">RAM Allocation</span>
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <div className={`p-2 rounded-xl border ${
+                  String(memory.status).toLowerCase() === "critical" ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
+                  String(memory.status).toLowerCase() === "warning" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                  "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                }`}>
                   <Server className="h-4 w-4" />
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <p className="text-2xl font-black text-white">{memory.usagePercentage}%</p>
-                <span className="text-[11px] font-bold text-slate-400">{memory.usedGB} / {memory.totalGB}</span>
+                <p className="text-2xl font-black text-white">
+                  {String(memory.status).toLowerCase() === "unavailable" ? "Unavailable" : `${memory.usagePercentage}%`}
+                </p>
+                <span className="text-[11px] font-bold text-slate-400">
+                  {String(memory.status).toLowerCase() === "unavailable" ? "N/A" : `${memory.usedGB} / ${memory.totalGB}`}
+                </span>
               </div>
               <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-amber-400 to-orange-400 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, Math.max(5, memory.usagePercentage))}%` }}
+                  style={{ width: `${Math.min(100, Math.max(5, memory.usagePercentage || 5))}%` }}
                 />
               </div>
             </div>
