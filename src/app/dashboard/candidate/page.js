@@ -293,17 +293,15 @@ const MENTORSHIP_TRACKS = [
 
 const SIDEBAR_ITEMS = [
   { id: "home",         label: "Dashboard",             icon: LayoutDashboard, badge: null },
-  { id: "ai-interview", label: "AI Interview",          icon: Bot,             badge: null },
   { id: "interviewers", label: "1:1 Mock Interview",    icon: Users,           badge: "matchCount" },
   { id: "flowcode",     label: "Coding Practice",       icon: Terminal,        badge: null },
   { id: "problems",     label: "Problems",              icon: CheckSquare,     badge: null },
-  { id: "contests",     label: "Contests",              icon: Trophy,          badge: null },
-  { id: "guidance",     label: "Interview Roadmap",     icon: MapPin,          badge: null },
+  { id: "connections",  label: "Company Invites",       icon: Building2,       badge: "connections" },
+  { id: "guidance",     label: "1:1 Mentorship",        icon: Sparkles,        badge: null },
   { id: "resume-review",label: "Resume Review",         icon: FileText,        badge: null },
   { id: "analytics",    label: "Analytics",             icon: BarChart2,       badge: null },
-  { id: "bookmarks",    label: "Bookmarks",             icon: Bookmark,        badge: null },
-  { id: "requests",     label: "History",               icon: History,         badge: "requestCount" },
-  { id: "readiness",    label: "Settings",              icon: Settings,        badge: "pct" },
+  { id: "requests",     label: "History & Sessions",    icon: History,         badge: "requestCount" },
+  { id: "readiness",    label: "Profile Settings",      icon: Settings,        badge: "pct" },
 ];
 
 const TABS = SIDEBAR_ITEMS;
@@ -311,24 +309,6 @@ const TABS = SIDEBAR_ITEMS;
 /* ═══════════════════════════════════════════════════════════════════════
    CUSTOM RICH ILLUSTRATIONS MATCHING REFERENCE SCREENSHOT
    ═══════════════════════════════════════════════════════════════════════ */
-
-const RobotAvatarIllustration = () => (
-  <svg className="w-20 h-20 sm:w-24 sm:h-24 drop-shadow-2xl" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="50" cy="52" r="34" fill="#0F1F38" stroke="#38BDF8" strokeWidth="2.5" />
-    <path d="M50 14V22" stroke="#38BDF8" strokeWidth="3" strokeLinecap="round" />
-    <circle cx="50" cy="12" r="4" fill="#6366F1" />
-    <rect x="22" y="32" width="56" height="38" rx="16" fill="#1E293B" stroke="#60A5FA" strokeWidth="2.5" />
-    <rect x="28" y="38" width="44" height="26" rx="10" fill="#0B132B" />
-    <circle cx="39" cy="51" r="5" fill="#38BDF8" />
-    <circle cx="61" cy="51" r="5" fill="#38BDF8" />
-    <circle cx="41" cy="49" r="1.5" fill="#FFFFFF" />
-    <circle cx="63" cy="49" r="1.5" fill="#FFFFFF" />
-    <path d="M44 58C46 60 54 60 56 58" stroke="#38BDF8" strokeWidth="2" strokeLinecap="round" />
-    <rect x="15" y="44" width="7" height="14" rx="3.5" fill="#3B82F6" />
-    <rect x="78" y="44" width="7" height="14" rx="3.5" fill="#3B82F6" />
-    <path d="M30 76C30 76 38 84 50 84C62 84 70 76 70 76" stroke="#475569" strokeWidth="3" strokeLinecap="round" />
-  </svg>
-);
 
 const ExpertMockIllustration = () => (
   <svg className="w-16 h-16 sm:w-20 sm:h-20 drop-shadow-md" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -414,6 +394,7 @@ export default function CandidateDashboard() {
   const [toast, setToast]               = useState(null);
   const [connectionsCount, setConnectionsCount] = useState(0);
   const [dashboardSearch, setDashboardSearch] = useState("");
+  const [dsaStats, setDsaStats]         = useState(null);
 
   // Smooth drag-to-resize sidebar handlers
   const handleMouseDownResize = useCallback((e) => {
@@ -446,17 +427,6 @@ export default function CandidateDashboard() {
       document.body.style.userSelect = "";
     };
   }, [isResizing]);
-
-  const [stepModalOpen, setStepModalOpen] = useState(false);
-  const [currentStep, setCurrentStep]     = useState(1);
-
-  const [selectedRoles, setSelectedRoles]         = useState(["frontend"]);
-  const [selectedLanguages, setSelectedLanguages] = useState(["javascript", "typescript"]);
-  const [selectedTopics, setSelectedTopics]       = useState(["dsa", "react"]);
-  const [selectedExperience, setSelectedExperience] = useState("junior");
-  const [sessionRoomCode, setSessionRoomCode]     = useState("");
-  const [cameraConsent, setCameraConsent]         = useState(true);
-  const [rulesConsent, setRulesConsent]           = useState(true);
 
   const [activeSession, setActiveSession] = useState(null);
   const [recentSessions, setRecentSessions] = useState([]);
@@ -563,13 +533,15 @@ export default function CandidateDashboard() {
   const fetchData = async (overrideToken, userIdParam) => {
     setLoading(true);
     try {
-      const [profileRes, statusRes] = await Promise.all([
+      const [profileRes, statusRes, dsaRes] = await Promise.all([
         api.get("/candidate/me").catch(() => ({ data: { success: false } })),
         api.get("/candidate/me/profile-status").catch(() => ({ data: { success: false } })),
+        api.get("/code/dsa-stats").catch(() => ({ data: { success: false } })),
       ]);
 
       const profileJson = profileRes.data;
       const statusJson  = statusRes.data;
+      const dsaJson     = dsaRes.data;
 
       if (profileJson.success && profileJson.data) {
         setProfile(profileJson.data);
@@ -580,6 +552,9 @@ export default function CandidateDashboard() {
       }
       if (statusJson.success && statusJson.data) {
         setReadiness(statusJson.data);
+      }
+      if (dsaJson?.success && dsaJson?.data) {
+        setDsaStats(dsaJson.data);
       }
 
       fetchInterviewersData(null, null, userIdParam);
@@ -987,7 +962,14 @@ export default function CandidateDashboard() {
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
                       active ? "bg-[#0B151E]/20 text-[#0B151E]" : "bg-teal-500/20 text-teal-400"
                     }`}>
-                      6
+                      {dsaStats?.totalSolved ?? 0}
+                    </span>
+                  )}
+                  {sidebarOpen && item.id === "analytics" && (
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+                      active ? "bg-[#0B151E]/20 text-[#0B151E]" : "bg-indigo-500/20 text-indigo-400"
+                    }`}>
+                      {dsaStats?.totalSubmissions ?? 0}
                     </span>
                   )}
                   {sidebarOpen && item.id === "sessions" && (
@@ -1132,12 +1114,12 @@ export default function CandidateDashboard() {
                     {profile?.profilePicture ? (
                       <img src={profile.profilePicture} alt="User" className="h-full w-full object-cover" />
                     ) : (
-                      (user.firstName || user.username || "V")[0].toUpperCase()
+                      (user?.firstName || user?.username || user?.email || "C")[0].toUpperCase()
                     )}
                   </div>
                 </div>
                 <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 group-hover:text-indigo-400 transition-colors mt-0.5">
-                  {user.firstName || user.username || "Vikas"}
+                  {user?.firstName || user?.username || user?.email?.split("@")[0] || "Candidate"}
                 </span>
               </div>
             </div>
@@ -1156,7 +1138,7 @@ export default function CandidateDashboard() {
                   {/* Welcome Greeting */}
                   <div>
                     <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-                      Welcome back, {user.firstName || user.username || "Vikas"} <span className="animate-bounce">👋</span>
+                      Welcome back, {user?.firstName || user?.username || user?.email?.split("@")[0] || "Candidate"} <span className="animate-bounce">👋</span>
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
                       Your journey to your dream job continues. Choose your next step.
@@ -1165,51 +1147,22 @@ export default function CandidateDashboard() {
 
                   {/* 3 Top Action Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    {/* Card 1: Adaptive AI Interview (Dark Card) */}
-                    <div className="rounded-3xl p-6 bg-[#0C1E3A] border border-blue-900/50 text-white shadow-xl flex flex-col justify-between relative overflow-hidden group hover:border-indigo-500/50 transition-all">
+                    {/* Card 1: 1:1 Live Mock Interviews (Dark Premium Card) */}
+                    <div className="rounded-3xl p-6 bg-gradient-to-br from-[#0C1E3A] via-[#0E274A] to-[#123363] border border-cyan-500/40 text-white shadow-xl flex flex-col justify-between relative overflow-hidden group hover:border-cyan-400 transition-all">
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <span className="px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase bg-white/10 text-cyan-300 border border-white/10 backdrop-blur-sm">
-                            AI POWERED
+                          <span className="px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 backdrop-blur-sm">
+                            LIVE 1-ON-1
                           </span>
                         </div>
 
                         <div className="flex items-start justify-between gap-2">
                           <div className="max-w-[180px] sm:max-w-[200px]">
                             <h3 className="text-lg font-black text-white leading-tight">
-                              Adaptive AI Interview
-                            </h3>
-                            <p className="text-xs text-slate-300 mt-2 leading-relaxed">
-                              Practice with an adaptive AI Interviewer and receive real-time feedback.
-                            </p>
-                          </div>
-                          <div className="shrink-0 -mt-2 -mr-1">
-                            <RobotAvatarIllustration />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pt-4">
-                        <button
-                          onClick={() => openStepWizard()}
-                          className="px-5 py-2.5 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-xs shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 transition-all hover:scale-105"
-                        >
-                          <span>Start Interview</span>
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Card 2: 1:1 Expert Mock Interviews (White Card) */}
-                    <div className="rounded-3xl p-6 bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white shadow-sm hover:shadow-md flex flex-col justify-between relative overflow-hidden transition-all">
-                      <div className="space-y-4">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="max-w-[180px] sm:max-w-[200px]">
-                            <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
                               1:1 Expert Mock<br />Interviews
                             </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
-                              Book an industry expert experienced consultations.
+                            <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                              Book live technical rounds on Google Meet with verified engineering leads.
                             </p>
                           </div>
                           <div className="shrink-0 -mr-1">
@@ -1221,24 +1174,29 @@ export default function CandidateDashboard() {
                       <div className="pt-4">
                         <button
                           onClick={() => setActiveTab("interviewers")}
-                          className="px-5 py-2.5 rounded-full border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 font-extrabold text-xs flex items-center gap-1.5 transition-all hover:scale-105"
+                          className="px-5 py-2.5 rounded-full bg-gradient-to-r from-cyan-400 to-teal-400 hover:from-cyan-300 hover:to-teal-300 text-[#0B151E] font-black text-xs shadow-lg shadow-cyan-500/20 flex items-center gap-1.5 transition-all hover:scale-105"
                         >
-                          <span>Book Now</span>
+                          <span>Find Interviewers</span>
                           <ArrowRight className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </div>
 
-                    {/* Card 3: Coding & Problem Solving (White Card) */}
+                    {/* Card 2: FlowCode Coding & Problem Solving (White Card) */}
                     <div className="rounded-3xl p-6 bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white shadow-sm hover:shadow-md flex flex-col justify-between relative overflow-hidden transition-all">
                       <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            FLOWCODE IDE
+                          </span>
+                        </div>
                         <div className="flex items-start justify-between gap-2">
                           <div className="max-w-[180px] sm:max-w-[200px]">
                             <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
-                              Coding &<br />Problem Solving
+                              Coding Practice &amp;<br />Problem Solving
                             </h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
-                              Book an industry solving problems and track progress.
+                              Practice live algorithms, run test cases, and solve real DSA questions.
                             </p>
                           </div>
                           <div className="shrink-0 -mr-1">
@@ -1257,68 +1215,149 @@ export default function CandidateDashboard() {
                         </button>
                       </div>
                     </div>
+
+                    {/* Card 3: Company Outreach & Recruiter Invites (White Card) */}
+                    <div className="rounded-3xl p-6 bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white shadow-sm hover:shadow-md flex flex-col justify-between relative overflow-hidden transition-all">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                            DIRECT HIRING
+                          </span>
+                        </div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="max-w-[180px] sm:max-w-[200px]">
+                            <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                              Company Outreach &amp;<br />Direct Hiring
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                              Receive direct recruiter invites and connect with hiring engineering teams.
+                            </p>
+                          </div>
+                          <div className="shrink-0 -mr-1">
+                            <div className="p-3 rounded-2xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center">
+                              <Building2 className="w-8 h-8" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-4">
+                        <button
+                          onClick={() => setActiveTab("connections")}
+                          className="px-5 py-2.5 rounded-full border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 font-extrabold text-xs flex items-center gap-1.5 transition-all hover:scale-105"
+                        >
+                          <span>View Invites ({connectionsCount})</span>
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Your Progress Section */}
                   <div className="space-y-3.5">
-                    <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                      Your Progress
-                    </h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                        Your Progress &amp; Activity
+                      </h3>
+                      <span className="text-[11px] font-bold text-slate-400">
+                        Live Candidate Metrics
+                      </span>
+                    </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {/* Stat 1: Interviews Taken */}
-                      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm space-y-2">
-                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-bold">
-                          <BarChart2 className="h-4 w-4 text-indigo-500" />
-                          <span>Interviews Taken</span>
+                      <div
+                        onClick={() => setActiveTab("requests")}
+                        className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm space-y-2 cursor-pointer hover:border-indigo-500/40 transition-all group"
+                      >
+                        <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-bold">
+                          <div className="flex items-center gap-2">
+                            <BarChart2 className="h-4 w-4 text-indigo-500 group-hover:scale-110 transition-transform" />
+                            <span>Interviews Taken</span>
+                          </div>
+                          <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-indigo-400" />
                         </div>
                         <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                          {recentSessions.length > 0 ? recentSessions.length : 24}
+                          {myRequests.filter((r) => r.status === "completed").length}
                         </div>
-                        <p className="text-[11px] font-bold text-emerald-500">
-                          +12% from last week
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">
+                          {myRequests.filter((r) => r.status === "accepted").length > 0
+                            ? `${myRequests.filter((r) => r.status === "accepted").length} upcoming scheduled`
+                            : myRequests.length > 0
+                            ? `${myRequests.length} total scheduled`
+                            : "No interviews taken yet"}
                         </p>
                       </div>
 
                       {/* Stat 2: Problems Solved */}
-                      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm space-y-2">
-                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-bold">
-                          <CheckSquare className="h-4 w-4 text-blue-500" />
-                          <span>Problems Solved</span>
+                      <div
+                        onClick={() => setActiveTab("problems")}
+                        className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm space-y-2 cursor-pointer hover:border-blue-500/40 transition-all group"
+                      >
+                        <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-bold">
+                          <div className="flex items-center gap-2">
+                            <CheckSquare className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                            <span>Problems Solved</span>
+                          </div>
+                          <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-blue-400" />
                         </div>
                         <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                          128
+                          {dsaStats?.totalSolved ?? (dsaStats?.totalSubmissions || 0)}
                         </div>
-                        <p className="text-[11px] font-bold text-emerald-500">
-                          +18% from last week
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">
+                          {(dsaStats?.totalSolved || 0) > 0
+                            ? `${dsaStats?.easySolved || 0} Easy • ${dsaStats?.mediumSolved || 0} Med • ${dsaStats?.hardSolved || 0} Hard`
+                            : (dsaStats?.totalSubmissions || 0) > 0
+                            ? `${dsaStats.totalSubmissions} code submissions`
+                            : "0 problems solved"}
                         </p>
                       </div>
 
                       {/* Stat 3: Accuracy */}
-                      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm space-y-2">
-                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-bold">
-                          <Target className="h-4 w-4 text-purple-500" />
-                          <span>Accuracy</span>
+                      <div
+                        onClick={() => setActiveTab("analytics")}
+                        className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm space-y-2 cursor-pointer hover:border-purple-500/40 transition-all group"
+                      >
+                        <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-bold">
+                          <div className="flex items-center gap-2">
+                            <Target className="h-4 w-4 text-purple-500 group-hover:scale-110 transition-transform" />
+                            <span>Accuracy</span>
+                          </div>
+                          <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-purple-400" />
                         </div>
                         <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                          78%
+                          {dsaStats?.acceptanceRate !== undefined && (dsaStats?.totalSubmissions || 0) > 0
+                            ? `${dsaStats.acceptanceRate}%`
+                            : (dsaStats?.totalSubmissions || 0) > 0
+                            ? "0%"
+                            : "—"}
                         </div>
-                        <p className="text-[11px] font-bold text-emerald-500">
-                          +9% from last week
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">
+                          {(dsaStats?.totalSubmissions || 0) > 0
+                            ? `${dsaStats?.acceptedSubmissions || 0} / ${dsaStats?.totalSubmissions || 0} passed`
+                            : "No submissions yet"}
                         </p>
                       </div>
 
-                      {/* Stat 4: Contests */}
-                      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm space-y-2">
-                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-bold">
-                          <Trophy className="h-4 w-4 text-amber-500" />
-                          <span>Contests</span>
+                      {/* Stat 4: Company Connections */}
+                      <div
+                        onClick={() => setActiveTab("connections")}
+                        className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm space-y-2 cursor-pointer hover:border-amber-500/40 transition-all group"
+                      >
+                        <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-bold">
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-amber-500 group-hover:scale-110 transition-transform" />
+                            <span>Company Invites</span>
+                          </div>
+                          <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-amber-400" />
                         </div>
                         <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                          6
+                          {connectionsCount}
                         </div>
-                        <p className="text-[11px] font-bold text-emerald-500">
-                          +2 from last week
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">
+                          {connectionsCount > 0
+                            ? `${connectionsCount} recruiter connection${connectionsCount > 1 ? "s" : ""}`
+                            : "No recruiter invites yet"}
                         </p>
                       </div>
                     </div>
@@ -1333,10 +1372,7 @@ export default function CandidateDashboard() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       {/* Topic 1: System Design */}
                       <div
-                        onClick={() => {
-                          setStepData(prev => ({ ...prev, topic: "system" }));
-                          openStepWizard();
-                        }}
+                        onClick={() => openBroadcastModal("System Design & Architecture")}
                         className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center gap-3.5 group"
                       >
                         <div className="shrink-0 p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/30">
@@ -1347,10 +1383,10 @@ export default function CandidateDashboard() {
                             System Design
                           </h4>
                           <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                            Build scalable systems.
+                            Build scalable distributed systems.
                           </p>
                           <span className="inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                            12 Modules
+                            1:1 Mentorship
                           </span>
                         </div>
                       </div>
@@ -1371,17 +1407,14 @@ export default function CandidateDashboard() {
                             Optimize recursive solutions.
                           </p>
                           <span className="inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                            18 Problems
+                            FlowCode Problems
                           </span>
                         </div>
                       </div>
 
                       {/* Topic 3: Behavioral Interview */}
                       <div
-                        onClick={() => {
-                          setStepData(prev => ({ ...prev, topic: "hr" }));
-                          openStepWizard();
-                        }}
+                        onClick={() => openBroadcastModal("Behavioral & Leadership STAR Method")}
                         className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center gap-3.5 group"
                       >
                         <div className="shrink-0 p-2 rounded-xl bg-blue-50 dark:bg-blue-950/30">
@@ -1392,10 +1425,10 @@ export default function CandidateDashboard() {
                             Behavioral Interview
                           </h4>
                           <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                            Excel at personal stories.
+                            STAR method with senior leads.
                           </p>
                           <span className="inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                            10 Questions
+                            1:1 Coaching
                           </span>
                         </div>
                       </div>
@@ -2519,7 +2552,7 @@ export default function CandidateDashboard() {
                       <div className={`p-3.5 rounded-2xl border flex items-center justify-between ${innerBg}`}>
                         <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
                           <FileText className="h-4 w-4 text-cyan-400" />
-                          <span>Candidate_Resume.pdf</span>
+                          <span>{profile.resumeUrl.split("/").pop() || "Uploaded_Resume.pdf"}</span>
                         </div>
                         <a
                           href={profile.resumeUrl}
@@ -2580,7 +2613,85 @@ export default function CandidateDashboard() {
               )}
 
               {/* ══════════════ TAB: DSA & FLOWCODE WORKSPACE ══════════════ */}
-              {(activeTab === "problems" || activeTab === "dsaprofile") && <ProblemSolvingTab user={user} />}
+              {(activeTab === "problems" || activeTab === "contests" || activeTab === "bookmarks") && (
+                <ProblemSolvingTab user={user} />
+              )}
+
+              {/* ══════════════ TAB: DSA & PERFORMANCE ANALYTICS ══════════════ */}
+              {(activeTab === "analytics" || activeTab === "dsaprofile") && (
+                <DsaProfileTab user={user} />
+              )}
+
+              {/* ══════════════ TAB: RESUME REVIEW & ATS ══════════════ */}
+              {activeTab === "resume-review" && (
+                <div className="space-y-6">
+                  <div className="p-7 rounded-3xl border bg-gradient-to-r from-purple-500/15 via-indigo-500/10 to-sky-500/15 border-purple-500/30 shadow-xl space-y-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/40 text-purple-300 text-xs font-black mb-2">
+                          <FileText className="h-4 w-4" /> ATS Resume &amp; Candidate Profile Check
+                        </div>
+                        <h2 className="text-xl sm:text-2xl font-black text-white">
+                          Candidate Resume &amp; Skills Readiness
+                        </h2>
+                        <p className="text-xs text-slate-300 max-w-xl">
+                          Review your uploaded resume, target job profile, and technical skills saved in your Candidate Profile.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setActiveTab("readiness")}
+                        className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shrink-0"
+                      >
+                        <Settings className="h-4 w-4" /> Edit Profile &amp; Resume
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+                      <div className={`p-4 rounded-2xl border ${innerBg}`}>
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Candidate Role</span>
+                        <p className="text-sm font-black text-white mt-1">{profile?.currentRole || "Not specified"}</p>
+                      </div>
+                      <div className={`p-4 rounded-2xl border ${innerBg}`}>
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Experience Level</span>
+                        <p className="text-sm font-black text-white mt-1">{profile?.yearsExperience ? `${profile.yearsExperience} Years` : "Not specified"}</p>
+                      </div>
+                      <div className={`p-4 rounded-2xl border ${innerBg}`}>
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Profile Completeness</span>
+                        <p className="text-sm font-black text-emerald-400 mt-1">{readiness?.percentage || 0}% Complete</p>
+                      </div>
+                    </div>
+
+                    {profile?.resumeUrl ? (
+                      <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${innerBg}`}>
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                            <FileText className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-white">{profile.resumeUrl.split("/").pop() || "Uploaded_Resume.pdf"}</p>
+                            <p className="text-[11px] text-slate-400">PDF Document saved on cloud</p>
+                          </div>
+                        </div>
+                        <a
+                          href={profile.resumeUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-4 py-2 rounded-xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 font-bold text-xs hover:bg-cyan-400/30 flex items-center justify-center gap-1.5 transition-all"
+                        >
+                          <span>View Saved Resume</span>
+                          <ArrowUpRight className="h-4 w-4" />
+                        </a>
+                      </div>
+                    ) : (
+                      <div className={`p-5 rounded-2xl border text-center space-y-2 ${innerBg}`}>
+                        <FileText className="h-8 w-8 text-slate-500 mx-auto" />
+                        <p className="text-xs font-bold text-slate-300">No resume document uploaded yet</p>
+                        <p className="text-[11px] text-slate-500">Upload your PDF resume in Settings to unlock automated ATS evaluation.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* ══════════════ TAB 8: REPORT BUG / ISSUES ══════════════ */}
               {activeTab === "bugs" && <ReportBugTab user={user} isAdmin={false} />}

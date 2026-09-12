@@ -79,11 +79,18 @@ export default function SuperAdminDashboard() {
     setUser(parsed);
     const t = localStorage.getItem("interviewflow_token") || parsed.token;
     setToken(t);
-    fetchAllData();
+    fetchAllData(false);
+
+    // Continuous Real-Time Live Sync (every 5 seconds)
+    const liveTimer = setInterval(() => {
+      fetchAllData(true);
+    }, 5000);
+
+    return () => clearInterval(liveTimer);
   }, [router]);
 
-  const fetchAllData = async () => {
-    setLoading(true);
+  const fetchAllData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [resUsers, resCompanies, bugRes, sessionRes, questionRes, monRes] = await Promise.all([
         api.get("/super-admin/users").catch((err) => ({ data: { success: false, data: [] } })),
@@ -175,9 +182,9 @@ export default function SuperAdminDashboard() {
       }
     } catch (err) {
       console.error("Error fetching super admin dashboard data:", err);
-      showToast("error", "Failed to fetch dashboard data.");
+      if (!silent) showToast("error", "Failed to fetch dashboard data.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 

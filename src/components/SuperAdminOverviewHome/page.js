@@ -44,9 +44,9 @@ export default function SuperAdminOverviewHome({
   const activeInterviewersCount = interviewers.length - pendingInterviewers.length;
   const openBugsCount = bugs.filter((b) => b.status === "open" || b.status === "in_progress" || b.status === "pending").length;
 
-  const cpu = monitoringData?.system?.cpu || { usagePercentage: 24, status: "HEALTHY" };
-  const memory = monitoringData?.system?.memory || { usagePercentage: 42, usedGB: "3.2 GB", totalGB: "8.0 GB" };
-  const perf = monitoringData?.performance?.summary || { avgResponseTimeMs: 18, overallSuccessRate: "99.8%" };
+  const cpu = monitoringData?.system?.cpu || { usagePercentage: 0, status: "HEALTHY" };
+  const memory = monitoringData?.system?.memory || { usagePercentage: 0, usedGB: "0 GB", totalGB: "0 GB" };
+  const perf = monitoringData?.performance?.summary || { avgResponseTimeMs: 0, overallSuccessRate: "100%" };
   const health = monitoringData?.health || { status: "healthy", services: { database: "up", api: "up", filesystem: "up" } };
   const business = monitoringData?.business || {};
 
