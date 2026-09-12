@@ -6,9 +6,10 @@ import {
   Code2, Search, Loader2, BookOpen, CheckCircle2,
   AlertCircle, ChevronRight, ChevronLeft, Shuffle, Lightbulb,
   FileCode, ArrowLeft, RefreshCw, Terminal, Play, List, Columns,
-  Maximize2, Minimize2, Check, Copy, Tag
+  Maximize2, Minimize2, Check, Copy, Tag, Award
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
+import DsaProfileTab from "@/components/DsaProfileTab/page";
 import { api } from "@/api";
 
 // Dynamically import CodeEditorWithRunner
@@ -36,9 +37,10 @@ const LANG_MAP = {
   rust:       ["rust"],
 };
 
-export default function ProblemSolvingTab() {
+export default function ProblemSolvingTab({ user = null }) {
   const { isDark } = useTheme();
 
+  const [mainView, setMainView]               = useState("solve"); // "solve" | "profile"
   const [questions, setQuestions]             = useState([]);
   const [loading, setLoading]                 = useState(true);
   const [error, setError]                     = useState(null);
@@ -171,8 +173,40 @@ export default function ProblemSolvingTab() {
         : "relative"
     }`}>
 
-      {/* ── LEETCODE TOP TOOLBAR ───────────────────────────────────────────── */}
-      <div className={`flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border shadow-lg text-xs ${isDark ? "bg-[#1e1e1e] border-white/10" : "bg-white border-slate-200 shadow-sm"}`}>
+      {/* ── UNIFIED FLOWCODE SUBTAB SWITCHER ── */}
+      {!isFullScreen && (
+        <div className="flex items-center justify-between pb-1">
+          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/10 w-fit">
+            <button
+              onClick={() => setMainView("solve")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                mainView === "solve"
+                  ? "bg-gradient-to-r from-cyan-500 to-teal-400 text-black shadow-md shadow-cyan-500/20 font-black"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Code2 className="h-3.5 w-3.5" /> Problem Solving & Practice ({questions.length})
+            </button>
+            <button
+              onClick={() => setMainView("profile")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                mainView === "profile"
+                  ? "bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-black shadow-md shadow-emerald-400/20 font-black"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Award className="h-3.5 w-3.5" /> FlowCode Profile & History
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mainView === "profile" ? (
+        <DsaProfileTab user={user} />
+      ) : (
+        <>
+          {/* ── PROBLEM SOLVING TOP TOOLBAR ── */}
+          <div className={`flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border shadow-lg text-xs ${isDark ? "bg-[#1e1e1e] border-white/10" : "bg-white border-slate-200 shadow-sm"}`}>
         
         {/* Left: Problem navigation controls */}
         <div className="flex items-center gap-2">
@@ -544,12 +578,16 @@ export default function ProblemSolvingTab() {
                   testCases={selectedQuestion.examples || []}
                   questionDescription={selectedQuestion.description || ""}
                   questionTitle={selectedQuestion.title || ""}
+                  questionId={selectedQuestion.frontendId || selectedQuestion.questionId || 1}
+                  difficulty={selectedQuestion.difficulty || "Easy"}
                   onCodeChange={(code, lang) => setSelectedLang(lang)}
                 />
               </div>
 
             </div>
           )}
+        </>
+      )}
         </>
       )}
     </div>

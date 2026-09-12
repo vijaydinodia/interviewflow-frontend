@@ -1,37 +1,51 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Shield, Laptop, Monitor, RefreshCw, Trash2, CheckCircle, AlertCircle, Search, Server, Cpu, Globe, Clock, UserCheck } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  Shield, Laptop, Monitor, RefreshCw, Trash2, CheckCircle, AlertCircle,
+  Search, Server, Cpu, Globe, Clock, UserCheck, Filter, ShieldAlert,
+  Smartphone, User, ArrowUpRight
+} from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
 import { api } from "@/api";
 
-export default function LoginSessionsTab({ user = null, isAdmin = false }) {
+export default function LoginSessionsTab({ user = null, isAdmin = false, isSuperAdmin: isSuperAdminProp = false }) {
   const { isDark } = useTheme();
 
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [roleFilter, setRoleFilter] = useState("all");
   const [msg, setMsg] = useState(null);
 
-  const isSuperOrAdmin = isAdmin || user?.role?.toLowerCase().includes("admin");
+  // Super Admin check (Only actual superAdmin sees ALL platform user sessions)
+  const isSuperAdmin = Boolean(
+    isSuperAdminProp === true ||
+    (isAdmin === true && (user?.role === "superAdmin" || user?.role?.toLowerCase()?.includes("super"))) ||
+    user?.role === "superAdmin" ||
+    user?.role?.toLowerCase() === "superadmin" ||
+    user?.role?.toLowerCase() === "super-admin" ||
+    user?.role?.toLowerCase() === "super_admin"
+  );
 
-  useEffect(() => {
-    fetchSessions();
-  }, [user]);
-
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     try {
       setLoading(true);
-      const url = isSuperOrAdmin
-        ? "/sessions/all"
-        : user?.userId || user?.email
-        ? `/sessions/my-sessions?userId=${user?.userId || ""}&userEmail=${user?.email || ""}`
-        : "/sessions/all";
+      // If Super Admin -> fetch ALL sessions from /sessions/all
+      // If regular user (Company Admin, Candidate, Interviewer) -> fetch ONLY self sessions from /sessions/my-sessions
+      const effectiveUserId = user?.userId || user?.user_id || user?.id || "";
+      const effectiveUserEmail = user?.email || "";
+
+      let url;
+      if (isSuperAdmin) {
+        url = "/sessions/all";
+      } else {
+        url = `/sessions/my-sessions?userId=${encodeURIComponent(effectiveUserId)}&userEmail=${encodeURIComponent(effectiveUserEmail)}`;
+      }
 
       const res = await api.get(url);
       const data = res.data;
-      console.log("[LoginSessionsTab] fetchSessions response:", data);
       if (data.success && Array.isArray(data.data)) {
         setSessions(data.data);
       } else if (Array.isArray(data)) {
@@ -45,7 +59,11 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isSuperAdmin, user]);
+
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
 
   const handleTerminateSession = async (sessionId) => {
     if (!window.confirm("Are you sure you want to terminate this login session?")) return;
@@ -74,7 +92,9 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
       s.serverHostname?.toLowerCase().includes(search.toLowerCase());
 
     const matchStatus = statusFilter === "all" || s.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchRole = roleFilter === "all" || (s.userRole && s.userRole.toLowerCase() === roleFilter.toLowerCase());
+
+    return matchSearch && matchStatus && matchRole;
   });
 
   const activeCount = sessions.filter((s) => s.status === "active").length;
@@ -84,9 +104,9 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
     ? "bg-[#0B151E]/90 border-white/10 text-white shadow-xl backdrop-blur-md"
     : "bg-white border-slate-200 text-slate-900 shadow-md";
 
-  const headerBadge = isDark
-    ? "bg-cyan-500/10 text-cyan-300 border-cyan-500/30"
-    : "bg-indigo-50 text-indigo-700 border-indigo-200";
+  const headerBadge = isSuperAdmin
+    ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+    : "bg-cyan-500/10 text-cyan-300 border-cyan-500/30";
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -99,16 +119,16 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-extrabold tracking-tight">
-                {isSuperOrAdmin ? "All Platform User Login Sessions & Device Audit" : "My Active Login Sessions & Security"}
+                {isSuperAdmin ? "All Platform User Login Sessions & Device Audit" : "My Active Login Sessions & Security"}
               </h2>
-              <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase ${headerBadge}`}>
-                {isSuperOrAdmin ? "SUPER ADMIN ACCESS" : "USER SECURITY"}
+              <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-wider ${headerBadge}`}>
+                {isSuperAdmin ? "SUPER ADMIN AUDIT" : "USER SECURITY"}
               </span>
             </div>
             <p className={`text-xs mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-              {isSuperOrAdmin
-                ? "Deep node.js OS & Path audit of all active user login sessions across the entire InterviewFlow platform."
-                : "Manage and inspect your active login sessions across devices and browsers."}
+              {isSuperAdmin
+                ? "Platform-wide audit of all user login sessions across candidates, interviewers, and company admins."
+                : "Real-time list of your active login devices, client IP addresses, and browser access history."}
             </p>
           </div>
         </div>
@@ -136,19 +156,19 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
           }`}
         >
           <div className="flex items-center gap-2">
-            {msg.type === "success" ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+            {msg.type === "success" ? <CheckCircle className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
             <span>{msg.text}</span>
           </div>
           <button onClick={() => setMsg(null)} className="text-slate-400 hover:text-white font-bold text-sm">×</button>
         </div>
       )}
 
-      {/* ── STAT CARDS ────────────────────────────────----------------──── */}
+      {/* ── STAT CARDS ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className={`p-5 rounded-3xl border flex items-center justify-between ${cardBg}`}>
           <div>
             <p className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-              Total Tracked Sessions
+              {isSuperAdmin ? "Total Platform Sessions" : "My Tracked Sessions"}
             </p>
             <h3 className="text-2xl font-black mt-1 text-cyan-400">{sessions.length}</h3>
           </div>
@@ -190,7 +210,7 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search email, IP, browser, OS..."
+            placeholder={isSuperAdmin ? "Search user, email, IP, browser..." : "Search IP, device, browser..."}
             className={`w-full pl-10 pr-4 py-2 text-xs rounded-2xl border outline-none transition-all ${
               isDark
                 ? "bg-black/30 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-400"
@@ -199,19 +219,41 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <span className={`text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>Status:</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-bold outline-none cursor-pointer ${
-              isDark ? "bg-[#080E18] border-white/10 text-slate-200" : "bg-slate-50 border-slate-200 text-slate-800"
-            }`}
-          >
-            <option value="all">All Sessions</option>
-            <option value="active">Active Only</option>
-            <option value="terminated">Terminated</option>
-          </select>
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
+          {/* Role Filter (Super Admin only) */}
+          {isSuperAdmin && (
+            <div className="flex items-center gap-1.5">
+              <span className={`text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>Role:</span>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold outline-none cursor-pointer ${
+                  isDark ? "bg-[#080E18] border-white/10 text-slate-200" : "bg-slate-50 border-slate-200 text-slate-800"
+                }`}
+              >
+                <option value="all">All Roles</option>
+                <option value="superAdmin">Super Admin</option>
+                <option value="admin">Company Admin</option>
+                <option value="interviewer">Interviewer</option>
+                <option value="candidate">Candidate</option>
+              </select>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5">
+            <span className={`text-xs font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>Status:</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-bold outline-none cursor-pointer ${
+                isDark ? "bg-[#080E18] border-white/10 text-slate-200" : "bg-slate-50 border-slate-200 text-slate-800"
+              }`}
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active Only</option>
+              <option value="terminated">Terminated</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -221,9 +263,9 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className={`border-b font-extrabold ${isDark ? "border-white/10 bg-black/40 text-slate-300" : "border-slate-200 bg-slate-100 text-slate-700"}`}>
-                <th className="p-3.5">User Details</th>
+                <th className="p-3.5">User / Account</th>
                 <th className="p-3.5">IP &amp; Device Agent</th>
-                <th className="p-3.5">Server Host Metadata (Node OS)</th>
+                <th className="p-3.5">Server Host Metadata</th>
                 <th className="p-3.5">Login Time</th>
                 <th className="p-3.5">Status</th>
                 <th className="p-3.5 text-center">Action</th>
@@ -239,7 +281,9 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
               ) : filteredSessions.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-slate-500 italic">
-                    No login sessions found matching criteria.
+                    {isSuperAdmin
+                      ? "No login sessions found across the platform."
+                      : "No login sessions found for your account."}
                   </td>
                 </tr>
               ) : (
@@ -250,11 +294,11 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
                       <div className="space-y-0.5">
                         <div className="font-extrabold text-slate-100 flex items-center gap-1.5">
                           <Laptop className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
-                          <span>{session.userName || "User"}</span>
+                          <span>{session.userName || user?.fullName || "User"}</span>
                         </div>
-                        <div className="text-[11px] text-slate-400 font-mono">{session.userEmail}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">{session.userEmail || user?.email}</div>
                         <span className="inline-block px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-300 border border-purple-500/30 text-[10px] font-bold uppercase">
-                          {session.userRole}
+                          {session.userRole || user?.role || "user"}
                         </span>
                       </div>
                     </td>
@@ -264,10 +308,10 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
                       <div className="space-y-1">
                         <div className="flex items-center gap-1 text-cyan-300 font-mono font-bold text-[11px]">
                           <Globe className="h-3 w-3 text-cyan-400" />
-                          <span>{session.ipAddress}</span>
+                          <span>{session.ipAddress || "127.0.0.1"}</span>
                         </div>
                         <div className="text-[10px] text-slate-400 line-clamp-2 max-w-xs font-mono">
-                          {session.userAgent}
+                          {session.userAgent || "Browser / Web Client"}
                         </div>
                       </div>
                     </td>
@@ -277,7 +321,7 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-1 text-slate-200 text-[11px] font-extrabold">
                           <Server className="h-3 w-3 text-amber-400 shrink-0" />
-                          <span>{session.serverHostname || "localhost"}</span>
+                          <span>{session.serverHostname || "InterviewFlow Cluster"}</span>
                         </div>
                         <div className="text-[10px] text-slate-400 flex items-center gap-1 font-mono">
                           <Cpu className="h-3 w-3 text-slate-500 shrink-0" />
@@ -290,7 +334,7 @@ export default function LoginSessionsTab({ user = null, isAdmin = false }) {
                     <td className="p-3.5">
                       <div className="flex items-center gap-1.5 text-[11px] text-slate-300 font-mono">
                         <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                        <span>{new Date(session.loginTime).toLocaleString()}</span>
+                        <span>{session.loginTime ? new Date(session.loginTime).toLocaleString() : "Just now"}</span>
                       </div>
                     </td>
 

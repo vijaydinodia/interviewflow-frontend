@@ -10,9 +10,10 @@ import {
   Building2, GraduationCap, Code2, Loader2, AlertCircle,
   X, Check, Globe, UserCog, Plus, Trash2, ShieldCheck,
   Clock, Users, CheckCircle2, Sparkles, Upload, Image as ImageIcon,
-  ExternalLink
+  ExternalLink, User
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
+import DsaProfileTab from "@/components/DsaProfileTab/page";
 import { api } from "@/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -75,6 +76,7 @@ export default function ProfilePage() {
   const [editOpen, setEditOpen]     = useState(false);
   const [editForm, setEditForm]     = useState({});
   const [toast, setToast]           = useState(null);
+  const [activeProfileTab, setActiveProfileTab] = useState("general"); // "general" | "dsa"
 
   const [newSkill, setNewSkill]     = useState("");
   const [newCompany, setNewCompany] = useState("");
@@ -254,7 +256,33 @@ export default function ProfilePage() {
 
       <main className="flex-1 pt-24 sm:pt-28 pb-12 px-4 sm:px-6 max-w-4xl mx-auto w-full space-y-6">
 
-        {loading ? (
+        {/* Navigation Tabs (General Profile vs LeetCode & DSA Profile) */}
+        <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white/[0.03] border border-white/10 w-fit">
+          <button
+            onClick={() => setActiveProfileTab("general")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeProfileTab === "general"
+                ? "bg-gradient-to-r from-cyan-500 to-teal-500 text-black shadow-md shadow-cyan-500/20 font-black"
+                : "text-slate-400 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <User className="h-3.5 w-3.5" /> General Profile
+          </button>
+          <button
+            onClick={() => setActiveProfileTab("dsa")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeProfileTab === "dsa"
+                ? "bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-black shadow-md shadow-emerald-400/20 font-black"
+                : "text-slate-400 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <Code2 className="h-3.5 w-3.5" /> FlowCode Profile
+          </button>
+        </div>
+
+        {activeProfileTab === "dsa" ? (
+          <DsaProfileTab user={user} />
+        ) : loading ? (
           <div className="flex items-center justify-center py-32">
             <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
           </div>

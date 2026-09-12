@@ -7,13 +7,15 @@ import {
   Check, X, RefreshCw, AlertCircle, Loader2, Send,
   Calendar, FileText, Code2, Sparkles, ChevronRight,
   ChevronLeft, Menu, Play, RotateCcw, ShieldCheck,
-  Search, MessageSquare, ArrowUpRight, Award, Plus, Trash2, Zap, Bug
+  Search, MessageSquare, ArrowUpRight, Award, Plus, Trash2, Zap, Bug,
+  AlertTriangle, Lock, Star
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
 import ProtectedRoute from "@/components/ProtectedRoute/page";
 import DashboardHeader from "../_components/DashboardHeader";
 import ReportBugTab from "@/components/ReportBugTab/page";
 import LoginSessionsTab from "@/components/LoginSessionsTab/page";
+import { getMeetingLinkStatus } from "../candidate/page";
 import { api } from "@/api";
 
 const SIDEBAR_ITEMS = [
@@ -45,11 +47,30 @@ export default function InterviewerDashboard() {
   const [rejectModal, setRejectModal] = useState(null);
   const [rejectNote, setRejectNote]   = useState("");
 
+  const [denyModal, setDenyModal]     = useState(null);
+  const [denyReason, setDenyReason]   = useState("");
+
   const [slotsList, setSlotsList] = useState([]);
   const [newSlot, setNewSlot] = useState("");
   const [slotFrom, setSlotFrom] = useState("17:00");
   const [slotTo, setSlotTo] = useState("18:00");
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // ── Feedback Modal State ──
+  const [feedbackModal, setFeedbackModal] = useState(null);
+  const [feedbackOverallRating, setFeedbackOverallRating] = useState(8);
+  const [feedbackSkillRatings, setFeedbackSkillRatings] = useState([]);
+  const [newSkillName, setNewSkillName] = useState("");
+  const [newSkillRating, setNewSkillRating] = useState(8);
+  const [feedbackRecommendation, setFeedbackRecommendation] = useState("hire");
+  const [feedbackStrengths, setFeedbackStrengths] = useState("");
+  const [feedbackAreas, setFeedbackAreas] = useState("");
+  const [feedbackGeneralNotes, setFeedbackGeneralNotes] = useState("");
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+
+  // ── View Feedback Modal State ──
+  const [viewFeedbackModal, setViewFeedbackModal] = useState(null);
+  const [loadingFeedbackView, setLoadingFeedbackView] = useState(false);
 
   const showToast = useCallback((type, message) => {
     setToast({ type, message });
@@ -101,7 +122,7 @@ export default function InterviewerDashboard() {
       const json = res.data;
 
       if (json.success) {
-        showToast("success", `Request marked as ${status}! Candidate notified via Brevo email.`);
+        showToast("success", `Request marked as ${status}! Candidate notified via email.`);
         setRejectModal(null);
         setRejectNote("");
         fetchAllData();
@@ -112,6 +133,146 @@ export default function InterviewerDashboard() {
       showToast("error", "Network error updating request status.");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleRespondToNewLink = async (requestId, action, denialReason = "") => {
+    try {
+      setActionLoading(requestId);
+      const res = await api.post(`/interview-requests/${requestId}/respond-new-link`, {
+        action,
+        denialReason,
+        durationMinutes: 60,
+      });
+      const json = res.data;
+      if (json.success) {
+        showToast(
+          "success",
+          action === "accept"
+            ? "🎉 New Google Meet link granted and activated for candidate (60 min)!"
+            : "Meeting link renewal request denied."
+        );
+        setDenyModal(null);
+        setDenyReason("");
+        fetchAllData();
+      } else {
+        showToast("error", json.message || "Failed to respond to link request.");
+      }
+    } catch (err) {
+      showToast("error", err.response?.data?.message || err.message || "Error processing link response.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // ── Open Feedback Modal for completing an interview ──
+  const handleOpenFeedbackModal = (request) => {
+    setFeedbackModal(request);
+    setFeedbackOverallRating(8);
+    setFeedbackRecommendation("hire");
+    setFeedbackStrengths("");
+    setFeedbackAreas("");
+    setFeedbackGeneralNotes("");
+    setNewSkillName("");
+    setNewSkillRating(8);
+
+    // Auto-seed initial skills from the interview request
+    const seeded = [];
+    if (request.language && request.language.trim()) {
+      seeded.push({ skill: request.language.trim(), rating: 8, notes: "" });
+    }
+    const topics = Array.isArray(request.topicFocus)
+      ? request.topicFocus
+      : typeof request.topicFocus === "string"
+      ? request.topicFocus.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    topics.forEach((top) => {
+      if (!seeded.some((s) => s.skill.toLowerCase() === top.toLowerCase())) {
+        seeded.push({ skill: top, rating: 8, notes: "" });
+      }
+    });
+    if (seeded.length === 0 && request.roleRequirement) {
+      seeded.push({ skill: request.roleRequirement.trim(), rating: 8, notes: "" });
+    }
+    setFeedbackSkillRatings(seeded);
+  };
+
+  // Add extra skill to feedback form
+  const handleAddFeedbackSkill = () => {
+    const trimmed = newSkillName.trim();
+    if (!trimmed) return;
+    if (feedbackSkillRatings.some((s) => s.skill.toLowerCase() === trimmed.toLowerCase())) {
+      showToast("error", `Skill "${trimmed}" is already added.`);
+      return;
+    }
+    setFeedbackSkillRatings((prev) => [
+      ...prev,
+      { skill: trimmed, rating: Number(newSkillRating) || 8, notes: "" },
+    ]);
+    setNewSkillName("");
+    setNewSkillRating(8);
+  };
+
+  // Remove a skill from feedback form
+  const handleRemoveFeedbackSkill = (index) => {
+    setFeedbackSkillRatings((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  // Update a skill's rating out of 10
+  const handleUpdateSkillRating = (index, rating) => {
+    setFeedbackSkillRatings((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, rating: Number(rating) } : item))
+    );
+  };
+
+  // Submit interview feedback
+  const handleSubmitFeedback = async (e) => {
+    e.preventDefault();
+    if (!feedbackModal) return;
+    if (feedbackSkillRatings.length === 0) {
+      showToast("error", "Please rate at least one skill tested during the interview.");
+      return;
+    }
+
+    setSubmittingFeedback(true);
+    try {
+      const res = await api.post(`/interview-requests/${feedbackModal.requestId}/feedback`, {
+        overallRating: Number(feedbackOverallRating) || 8,
+        skillRatings: feedbackSkillRatings,
+        recommendation: feedbackRecommendation,
+        strengths: feedbackStrengths,
+        areasForImprovement: feedbackAreas,
+        generalNotes: feedbackGeneralNotes,
+      });
+
+      if (res.data?.success) {
+        showToast("success", "🎉 Feedback & skill ratings submitted! Candidate notified.");
+        setFeedbackModal(null);
+        fetchAllData();
+      } else {
+        showToast("error", res.data?.message || "Failed to submit feedback.");
+      }
+    } catch (err) {
+      showToast("error", err.response?.data?.message || "Error submitting feedback.");
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
+
+  // Open modal to view existing feedback
+  const handleViewFeedback = async (requestId) => {
+    setLoadingFeedbackView(true);
+    try {
+      const res = await api.get(`/interview-requests/${requestId}/feedback`);
+      if (res.data?.success && res.data.data) {
+        setViewFeedbackModal(res.data.data);
+      } else {
+        showToast("error", "No feedback record found for this interview.");
+      }
+    } catch (err) {
+      showToast("error", "Could not load feedback details.");
+    } finally {
+      setLoadingFeedbackView(false);
     }
   };
 
@@ -212,7 +373,7 @@ export default function InterviewerDashboard() {
 
       <div className="flex flex-1 overflow-hidden relative min-h-0">
 
-        {/* ══════════════════ INTERVIEWER SIDEBAR ══════════════════ */}
+        {/* Sidebar */}
         <aside className={`h-full flex-shrink-0 flex flex-col border-r transition-all duration-300 ${sideBg} ${
           sidebarOpen ? "w-64" : "w-18 sm:w-20"
         } hidden md:flex overflow-hidden`}>
@@ -319,7 +480,7 @@ export default function InterviewerDashboard() {
           </div>
         </aside>
 
-        {/* ══════════════════ MAIN WORKSPACE ══════════════════ */}
+        {/* Main workspace */}
         <main className="flex-1 h-full overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 min-h-0">
 
           {/* Mobile Drawer */}
@@ -384,7 +545,7 @@ export default function InterviewerDashboard() {
             </button>
           </div>
 
-          {/* ══════════════ SUPER ADMIN VERIFICATION STATUS BANNER ══════════════ */}
+          {/* Verification status banner */}
           {!profile?.isVerified ? (
             <div className="p-5 rounded-3xl border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent text-amber-200 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
               <div className="flex items-start gap-3.5">
@@ -427,7 +588,7 @@ export default function InterviewerDashboard() {
             </div>
           )}
 
-          {/* ══════════════ TAB 1: INCOMING REQUESTS & ACTIONS ══════════════ */}
+          {/* Incoming requests */}
           {activeTab === "requests" && (
             <div className="space-y-6">
 
@@ -667,6 +828,43 @@ export default function InterviewerDashboard() {
                           </div>
                         )}
 
+                        {/* Candidate Link Renewal Request Banner */}
+                        {(req.newLinkRequested || req.newLinkStatus === "pending") && (
+                          <div className="p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 text-amber-300 space-y-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 font-black text-xs text-amber-300">
+                                <AlertTriangle className="h-4 w-4 text-amber-400" />
+                                <span>Candidate Requested New Google Meet Link / Extension</span>
+                              </div>
+                              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-mono font-black border border-amber-400/30">
+                                Action Needed
+                              </span>
+                            </div>
+                            {req.newLinkReason && (
+                              <p className="text-xs text-amber-100/90 italic bg-black/30 p-3 rounded-xl border border-amber-500/20">
+                                "{req.newLinkReason}"
+                              </p>
+                            )}
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              <button
+                                onClick={() => handleRespondToNewLink(req.requestId, "accept")}
+                                disabled={actionLoading === req.requestId}
+                                className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black text-xs shadow-md hover:brightness-110 flex items-center gap-1.5 transition-all"
+                              >
+                                {actionLoading === req.requestId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                                Accept &amp; Grant New Link (60 Min)
+                              </button>
+                              <button
+                                onClick={() => { setDenyModal(req); setDenyReason(""); }}
+                                disabled={actionLoading === req.requestId}
+                                className="px-3.5 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 text-xs font-bold transition-all flex items-center gap-1.5"
+                              >
+                                <X className="h-3.5 w-3.5" /> Deny Request
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Actions Toolbar */}
                         <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2 border-t border-white/5">
                           {isPending && (
@@ -701,31 +899,60 @@ export default function InterviewerDashboard() {
                             </>
                           )}
 
-                          {isAccepted && req.meetingLink && (
-                            <a
-                              href={req.meetingLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black text-xs shadow-lg hover:brightness-110 transition-all flex items-center gap-1.5"
-                            >
-                              <Video className="h-3.5 w-3.5 text-black fill-current" /> Join Google Meet Call
-                            </a>
-                          )}
+                          {isAccepted && (() => {
+                            const linkState = getMeetingLinkStatus(req);
+                            if (linkState.state === "UPCOMING") {
+                              return (
+                                <div className="px-3.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                                  <Lock className="h-3.5 w-3.5 text-amber-400" />
+                                  <span>{linkState.label}</span>
+                                </div>
+                              );
+                            }
+                            if (linkState.state === "ACTIVE" && req.meetingLink) {
+                              return (
+                                <a
+                                  href={req.meetingLink}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black text-xs shadow-lg hover:brightness-110 transition-all flex items-center gap-1.5 animate-pulse"
+                                >
+                                  <Video className="h-3.5 w-3.5 text-black fill-current" /> Join Google Meet Call
+                                </a>
+                              );
+                            }
+                            if (linkState.state === "EXPIRED_UNCOMPLETED") {
+                              return (
+                                <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-400" /> Slot Expired • Please Mark Complete
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
 
                           {isAccepted && (
                             <button
-                              onClick={() => handleTakeAction(req.requestId, "completed")}
+                              onClick={() => handleOpenFeedbackModal(req)}
                               disabled={actionLoading === req.requestId}
-                              className="px-3.5 py-2 rounded-xl border border-white/10 text-slate-300 hover:bg-white/5 text-xs font-bold flex items-center gap-1.5"
+                              className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-extrabold text-xs shadow-md hover:brightness-110 flex items-center gap-1.5 transition-all"
                             >
-                              <ShieldCheck className="h-3.5 w-3.5 text-purple-400" /> Mark Completed
+                              <Award className="h-3.5 w-3.5" /> Complete &amp; Submit Feedback
                             </button>
                           )}
 
                           {isCompleted && (
-                            <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                              <CheckCircle2 className="h-4 w-4" /> Interview Completed
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                                <CheckCircle2 className="h-4 w-4" /> Completed
+                              </span>
+                              <button
+                                onClick={() => handleViewFeedback(req.requestId)}
+                                className="px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 text-xs font-bold flex items-center gap-1.5 transition-all"
+                              >
+                                <FileText className="h-3 w-3" /> View Feedback
+                              </button>
+                            </div>
                           )}
 
                           {isRejected && (
@@ -742,7 +969,7 @@ export default function InterviewerDashboard() {
             </div>
           )}
 
-          {/* ══════════════ TAB: SCHEDULE & SLOTS ══════════════ */}
+          {/* Schedule and slots */}
           {activeTab === "availability" && (
             <div className="space-y-6">
               <div className={`p-6 rounded-3xl border shadow-xl space-y-5 ${cardBg}`}>
@@ -868,7 +1095,7 @@ export default function InterviewerDashboard() {
             </div>
           )}
 
-          {/* ══════════════ TAB 4: MY SPECIALIZATIONS ══════════════ */}
+          {/* Specializations and profile */}
           {activeTab === "profile" && (
             <div className="space-y-6">
               <div className={`p-6 rounded-3xl border shadow-xl space-y-4 ${cardBg}`}>
@@ -972,15 +1199,15 @@ export default function InterviewerDashboard() {
             </div>
           )}
 
-          {/* ══════════════ TAB 5: REPORT BUG / ISSUES ══════════════ */}
+          {/* Report bug */}
           {activeTab === "bugs" && <ReportBugTab user={user} isAdmin={false} />}
 
-          {/* ══════════════ TAB 6: LOGIN SESSIONS & SECURITY ══════════════ */}
+          {/* Login sessions */}
           {activeTab === "sessions" && <LoginSessionsTab user={user} isAdmin={false} />}
         </main>
       </div>
 
-      {/* ══════════════ REJECT / DECLINE MODAL ══════════════ */}
+      {/* Decline modal */}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
           <div className={`w-full max-w-md rounded-3xl border shadow-2xl overflow-hidden ${
@@ -1028,6 +1255,373 @@ export default function InterviewerDashboard() {
                   Confirm Decline
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deny link request modal */}
+      {denyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className={`w-full max-w-md rounded-3xl border shadow-2xl overflow-hidden ${
+            isDark ? "border-amber-500/30 bg-[#080E18] text-white" : "border-slate-200 bg-white text-slate-900"
+          }`}>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <XCircle className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold">Deny Link Renewal Request</h3>
+                  <p className="text-xs text-slate-400">Candidate: {denyModal.candidateUser?.firstName || "Candidate"}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  Reason for Denying (Sent to candidate)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Current schedule is full. Please book a fresh slot tomorrow."
+                  value={denyReason}
+                  onChange={(e) => setDenyReason(e.target.value)}
+                  className={`w-full rounded-2xl border px-3.5 py-2.5 text-xs outline-none focus:ring-2 focus:ring-amber-500/50 ${
+                    isDark ? "border-white/10 bg-[#0B151E] text-white placeholder-slate-500" : "border-slate-200 bg-slate-50 text-slate-900"
+                  }`}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setDenyModal(null)}
+                  className={`flex-1 py-2.5 rounded-xl border text-xs font-bold ${
+                    isDark ? "border-white/10 hover:bg-white/5 text-slate-300" : "border-slate-200 hover:bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleRespondToNewLink(denyModal.requestId, "deny", denyReason)}
+                  disabled={actionLoading === denyModal.requestId}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs shadow flex items-center justify-center gap-1.5"
+                >
+                  {actionLoading === denyModal.requestId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                  Confirm Denial
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Submit feedback and skill ratings modal */}
+      {feedbackModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+          <div
+            className={`w-full max-w-2xl rounded-3xl border shadow-2xl overflow-hidden my-8 ${
+              isDark ? "border-purple-500/30 bg-[#080E18] text-white" : "border-slate-200 bg-white text-slate-900"
+            }`}
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-white/10 flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white uppercase flex items-center gap-1 w-fit">
+                  <Award className="h-3 w-3" /> Interview Evaluation &amp; Skill Ratings
+                </span>
+                <h3 className="text-lg font-extrabold text-white">
+                  Evaluate {feedbackModal.candidateUser?.firstName || "Candidate"}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Target Role: <strong className="text-cyan-300">{feedbackModal.roleRequirement}</strong> • Room: <strong className="text-slate-300 font-mono">{feedbackModal.roomCode}</strong>
+                </p>
+              </div>
+              <button
+                onClick={() => setFeedbackModal(null)}
+                className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSubmitFeedback} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto text-xs">
+              {/* Overall Score & Recommendation Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5 p-3.5 rounded-2xl border border-purple-500/20 bg-purple-500/5">
+                  <label className="font-bold text-slate-200 flex items-center justify-between">
+                    <span>Overall Performance Rating</span>
+                    <span className="text-purple-300 font-black text-sm">{feedbackOverallRating} / 10 ⭐</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    step="0.5"
+                    value={feedbackOverallRating}
+                    onChange={(e) => setFeedbackOverallRating(Number(e.target.value))}
+                    className="w-full accent-purple-500 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[9px] text-slate-500 font-mono">
+                    <span>1 (Poor)</span>
+                    <span>5 (Average)</span>
+                    <span>10 (Outstanding)</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 p-3.5 rounded-2xl border border-white/10 bg-black/20">
+                  <label className="font-bold text-slate-200 block">Hiring Recommendation</label>
+                  <select
+                    value={feedbackRecommendation}
+                    onChange={(e) => setFeedbackRecommendation(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-xl border font-bold text-xs outline-none ${
+                      isDark ? "bg-[#0B151E] border-white/10 text-white" : "bg-white border-slate-300 text-slate-900"
+                    }`}
+                  >
+                    <option value="strong_hire">Strong Hire (Top Tier)</option>
+                    <option value="hire">Hire (Meets Requirements)</option>
+                    <option value="potential">Potential (Needs More Experience)</option>
+                    <option value="needs_work">Needs Work / Not Ready</option>
+                  </select>
+                  <p className="text-[10px] text-slate-400">Your hiring recommendation for candidate profile matching.</p>
+                </div>
+              </div>
+
+              {/* ── Skill-by-Skill Evaluation Form (Out of 10) ── */}
+              <div className="space-y-3 p-4 rounded-2xl border border-cyan-500/30 bg-cyan-500/5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-white flex items-center gap-1.5 text-xs">
+                      <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
+                      Skills Tested &amp; Rating Out of 10 (Used for Company Matching)
+                    </h4>
+                    <p className="text-[11px] text-slate-400">
+                      Rate the student on each skill tested during the interview. Companies search and match candidates based on these ratings!
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                    {feedbackSkillRatings.length} Skills
+                  </span>
+                </div>
+
+                {/* Add Extra Skill Row */}
+                <div className="flex gap-2 pt-1">
+                  <input
+                    type="text"
+                    value={newSkillName}
+                    onChange={(e) => setNewSkillName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddFeedbackSkill();
+                      }
+                    }}
+                    placeholder="Add extra skill tested (e.g. System Design, SQL, Docker)..."
+                    className={`flex-1 px-3 py-2 rounded-xl border text-xs outline-none ${
+                      isDark ? "bg-[#0B151E] border-white/10 text-white" : "bg-white border-slate-300 text-slate-900"
+                    }`}
+                  />
+                  <select
+                    value={newSkillRating}
+                    onChange={(e) => setNewSkillRating(Number(e.target.value))}
+                    className={`w-28 px-2 py-2 rounded-xl border text-xs font-bold outline-none ${
+                      isDark ? "bg-[#0B151E] border-white/10 text-white" : "bg-white border-slate-300 text-slate-900"
+                    }`}
+                  >
+                    {[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((n) => (
+                      <option key={n} value={n}>{n} / 10</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAddFeedbackSkill}
+                    className="px-3.5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-extrabold text-xs flex items-center gap-1 shadow-sm shrink-0"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add
+                  </button>
+                </div>
+
+                {/* Skill Ratings List */}
+                <div className="space-y-2 pt-2">
+                  {feedbackSkillRatings.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-xl bg-black/30 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="space-y-0.5">
+                        <span className="font-extrabold text-xs text-slate-100">{item.skill}</span>
+                        <input
+                          type="text"
+                          placeholder="Optional notes (e.g. Good problem decomposition)..."
+                          value={item.notes}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFeedbackSkillRatings((prev) =>
+                              prev.map((s, i) => (i === idx ? { ...s, notes: val } : s))
+                            );
+                          }}
+                          className="w-full text-[10px] text-slate-400 bg-transparent border-none outline-none focus:text-white"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded-lg">
+                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                          <select
+                            value={item.rating}
+                            onChange={(e) => handleUpdateSkillRating(idx, e.target.value)}
+                            className="bg-transparent text-amber-300 font-extrabold text-xs outline-none cursor-pointer"
+                          >
+                            {[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((r) => (
+                              <option key={r} value={r} className="bg-[#0B151E] text-white">
+                                {r} / 10
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFeedbackSkill(idx)}
+                          className="p-1 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Strengths Textarea */}
+              <div className="space-y-1">
+                <label className="font-bold text-slate-300">Candidate Key Strengths</label>
+                <textarea
+                  rows={3}
+                  value={feedbackStrengths}
+                  onChange={(e) => setFeedbackStrengths(e.target.value)}
+                  placeholder="e.g. Clear communication, good understanding of async patterns, wrote clean edge-case tests..."
+                  className={`w-full px-3.5 py-2.5 rounded-xl border focus:outline-none ${
+                    isDark ? "bg-[#0B151E] border-white/10 text-white" : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+
+              {/* Areas for Improvement Textarea */}
+              <div className="space-y-1">
+                <label className="font-bold text-slate-300">Areas for Growth / What to Practice</label>
+                <textarea
+                  rows={3}
+                  value={feedbackAreas}
+                  onChange={(e) => setFeedbackAreas(e.target.value)}
+                  placeholder="e.g. Deepen knowledge of database indexing, practice optimizing time complexity for graph algorithms..."
+                  className={`w-full px-3.5 py-2.5 rounded-xl border focus:outline-none ${
+                    isDark ? "bg-[#0B151E] border-white/10 text-white" : "bg-white border-slate-300 text-slate-900"
+                  }`}
+                />
+              </div>
+
+              {/* Modal Footer */}
+              <div className="pt-3 border-t border-white/10 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setFeedbackModal(null)}
+                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-300 font-bold hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingFeedback}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-extrabold hover:brightness-110 transition-all flex items-center gap-1.5 shadow-md"
+                >
+                  {submittingFeedback ? <Loader2 className="h-4 w-4 animate-spin" /> : <Award className="h-4 w-4" />}
+                  {submittingFeedback ? "Submitting..." : "Submit Feedback & Complete"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View submitted feedback modal */}
+      {viewFeedbackModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+          <div
+            className={`w-full max-w-xl rounded-3xl border shadow-2xl overflow-hidden my-8 ${
+              isDark ? "border-cyan-500/30 bg-[#080E18] text-white" : "border-slate-200 bg-white text-slate-900"
+            }`}
+          >
+            <div className="p-6 border-b border-white/10 flex items-start justify-between gap-4">
+              <div>
+                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 uppercase">
+                  Verified Interview Evaluation
+                </span>
+                <h3 className="text-lg font-extrabold text-white mt-1">
+                  Evaluation for {viewFeedbackModal.candidateUser?.firstName || "Candidate"}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Role: <strong className="text-cyan-300">{viewFeedbackModal.interviewRequest?.roleRequirement}</strong>
+                </p>
+              </div>
+              <button
+                onClick={() => setViewFeedbackModal(null)}
+                className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto text-xs">
+              {/* Overall Score Badge */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-cyan-500/20 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Overall Score</span>
+                  <p className="text-2xl font-black text-cyan-300">{viewFeedbackModal.overallRating} / 10 ⭐</p>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase bg-emerald-500/20 border border-emerald-500/30 text-emerald-300">
+                  {viewFeedbackModal.recommendation?.replace("_", " ")}
+                </span>
+              </div>
+
+              {/* Skills Evaluated */}
+              <div className="space-y-2">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Skills Evaluated (Out of 10):</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {Array.isArray(viewFeedbackModal.skillRatings) && viewFeedbackModal.skillRatings.map((sr, idx) => (
+                    <div key={idx} className="p-3 rounded-xl bg-black/30 border border-white/10 flex items-center justify-between">
+                      <span className="font-bold text-slate-200">{sr.skill}</span>
+                      <span className="px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 font-black text-xs border border-amber-500/30 flex items-center gap-1">
+                        <Star className="h-3 w-3 fill-amber-300" /> {sr.rating}/10
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Strengths */}
+              {viewFeedbackModal.strengths && (
+                <div className="p-3.5 rounded-xl bg-black/30 border border-white/10 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-emerald-400">Candidate Strengths:</span>
+                  <p className="text-slate-300 leading-relaxed">{viewFeedbackModal.strengths}</p>
+                </div>
+              )}
+
+              {/* Areas for Improvement */}
+              {viewFeedbackModal.areasForImprovement && (
+                <div className="p-3.5 rounded-xl bg-black/30 border border-white/10 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-amber-400">Areas for Growth:</span>
+                  <p className="text-slate-300 leading-relaxed">{viewFeedbackModal.areasForImprovement}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 border-t border-white/10 flex justify-end bg-black/20">
+              <button
+                onClick={() => setViewFeedbackModal(null)}
+                className="px-5 py-2 rounded-xl bg-cyan-500 text-black font-bold text-xs hover:bg-cyan-400 transition-all shadow-md"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

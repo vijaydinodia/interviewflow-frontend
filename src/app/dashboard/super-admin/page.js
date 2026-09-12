@@ -9,25 +9,29 @@ import {
   ExternalLink, Globe, MapPin, Mail, Phone, Calendar, Code2,
   Award, Clock, FileText, CheckCircle, Tag, Sparkles, Layers, User,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  ArrowUpDown, ArrowUp, ArrowDown, Bug
+  ArrowUpDown, ArrowUp, ArrowDown, Bug, Activity, LayoutDashboard
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
 import ProtectedRoute from "@/components/ProtectedRoute/page";
 import DashboardHeader from "../_components/DashboardHeader";
+import SuperAdminOverviewHome from "@/components/SuperAdminOverviewHome/page";
 import ReportBugTab from "@/components/ReportBugTab/page";
 import LoginSessionsTab from "@/components/LoginSessionsTab/page";
 import QuestionManagerTab from "@/components/QuestionManagerTab/page";
+import SystemMonitoringTab from "@/components/SystemMonitoringTab/page";
 import { api } from "@/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 const SIDEBAR_TABS = [
-  { id: "companies",    label: "Companies",    icon: Building2 },
-  { id: "interviewers", label: "Interviewers", icon: UserCog },
-  { id: "candidates",   label: "Candidates",   icon: Briefcase },
-  { id: "questions",    label: "Questions",    icon: Code2 },
-  { id: "bugs",         label: "Bug Reports",  icon: Bug },
+  { id: "overview",     label: "Overview Home",  icon: LayoutDashboard },
+  { id: "companies",    label: "Companies",      icon: Building2 },
+  { id: "interviewers", label: "Interviewers",   icon: UserCog },
+  { id: "candidates",   label: "Candidates",     icon: Briefcase },
+  { id: "questions",    label: "Questions",      icon: Code2 },
+  { id: "bugs",         label: "Bug Reports",    icon: Bug },
   { id: "sessions",     label: "Login Sessions", icon: ShieldAlert },
+  { id: "monitoring",   label: "System Monitoring", icon: Activity },
 ];
 
 export default function SuperAdminDashboard() {
@@ -45,10 +49,11 @@ export default function SuperAdminDashboard() {
   const [bugs, setBugs] = useState([]);
   const [sessionsList, setSessionsList] = useState([]);
   const [questionsCount, setQuestionsCount] = useState(0);
+  const [monitoringData, setMonitoringData] = useState(null);
 
   const [loading, setLoading]           = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
-  const [activeSection, setActiveSection] = useState("companies");
+  const [activeSection, setActiveSection] = useState("overview");
 
   const [filterTab, setFilterTab]       = useState("all");
   const [searchTerm, setSearchTerm]     = useState("");
@@ -80,12 +85,13 @@ export default function SuperAdminDashboard() {
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      const [resUsers, resCompanies, bugRes, sessionRes, questionRes] = await Promise.all([
+      const [resUsers, resCompanies, bugRes, sessionRes, questionRes, monRes] = await Promise.all([
         api.get("/super-admin/users").catch((err) => ({ data: { success: false, data: [] } })),
         api.get("/super-admin/companies").catch((err) => ({ data: { success: false, data: [] } })),
         api.get("/bugs/all").catch((err) => ({ data: { success: false, data: [] } })),
         api.get("/sessions/all").catch(() => ({ data: {} })),
         api.get("/questions/count").catch(() => api.get("/api/questions/count")).catch(() => ({ data: {} })),
+        api.get("/monitoring/dashboard").catch(() => ({ data: {} })),
       ]);
 
       const jsonUsers = resUsers.data;
@@ -93,6 +99,11 @@ export default function SuperAdminDashboard() {
       const bugJson = bugRes.data;
       const sessionJson = sessionRes.data;
       const questionJson = questionRes.data;
+      const monJson = monRes.data;
+
+      if (monJson && monJson.success) {
+        setMonitoringData(monJson);
+      }
 
       if (questionJson && questionJson.count !== undefined) {
         setQuestionsCount(questionJson.count);
@@ -110,15 +121,26 @@ export default function SuperAdminDashboard() {
 
       if (jsonCompanies.success && Array.isArray(jsonCompanies.data)) {
         const rawCompanies = jsonCompanies.data.map((c) => {
-          if (c.userId) return c;
-          if (c.user) return { ...c.user, companyProfile: c };
+          if (c.userId && !c.user) {
+            return {
+              ...c,
+              isActive: c.isActive !== false && c.isActive !== 0,
+            };
+          }
+          if (c.user) {
+            return {
+              ...c.user,
+              companyProfile: c,
+              isActive: c.user.isActive !== false && c.user.isActive !== 0,
+            };
+          }
           return {
             userId: c.companyId,
             role: "admin",
             email: c.contactEmail || "company@interviewflow.com",
             firstName: c.companyName,
             companyProfile: c,
-            isActive: c.isVerified ?? true,
+            isActive: c.isVerified === true || c.isVerified === 1,
             createdAt: c.createdAt,
           };
         });
@@ -128,6 +150,14 @@ export default function SuperAdminDashboard() {
           if (rc.userId && !existingIds.has(rc.userId)) {
             companyList.push(rc);
             existingIds.add(rc.userId);
+          } else if (rc.userId && existingIds.has(rc.userId)) {
+            const idx = companyList.findIndex((x) => x.userId === rc.userId);
+            if (idx !== -1 && rc.companyProfile) {
+              companyList[idx].companyProfile = {
+                ...(companyList[idx].companyProfile || {}),
+                ...rc.companyProfile,
+              };
+            }
           }
         });
       }
@@ -182,83 +212,134 @@ export default function SuperAdminDashboard() {
       const path = url.replace(API_BASE, "");
       const res = await api({ method, url: path, data });
       return res.data;
-    } catch {
-      return { success: false };
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Request failed";
+      return { success: false, message: msg };
     }
   };
 
   const handleRestore = async (item) => {
     setActionLoading(item.userId);
-    const json = await doFetch(`${API_BASE}/super-admin/users/${item.userId}/restore`, "PUT", token);
+    const json = await doFetch(`${API_BASE}/super-admin/users/${item.userId}/restore`, "PUT");
     setActionLoading(null);
-    patchAll(item.userId, { isActive: true });
-    showToast(json.success ? "success" : "error",
-      json.success ? `"${item.email}" restored!` : json.message || "Failed to restore.");
+    if (json.success) {
+      patchAll(item.userId, { isActive: true });
+      showToast("success", `"${item.email}" restored!`);
+    } else {
+      showToast("error", json.message || "Failed to restore.");
+    }
   };
 
   const handleSoftDelete = async (item) => {
     setActionLoading(item.userId);
-    const json = await doFetch(`${API_BASE}/super-admin/users/${item.userId}/soft`, "DELETE", token);
+    const json = await doFetch(`${API_BASE}/super-admin/users/${item.userId}/soft`, "DELETE");
     setActionLoading(null);
     setConfirmModal(null);
-    patchAll(item.userId, { isActive: false });
-    showToast(json.success ? "success" : "error",
-      json.success ? `"${item.email}" deactivated.` : json.message || "Failed.");
+    if (json.success) {
+      patchAll(item.userId, { isActive: false });
+      showToast("success", `"${item.email}" deactivated.`);
+    } else {
+      showToast("error", json.message || "Failed to deactivate.");
+    }
   };
 
   const handleHardDelete = async (item) => {
     setActionLoading(item.userId);
-    const json = await doFetch(`${API_BASE}/super-admin/users/${item.userId}/hard`, "DELETE", token);
+    const json = await doFetch(`${API_BASE}/super-admin/users/${item.userId}/hard`, "DELETE");
     setActionLoading(null);
     setConfirmModal(null);
-    removeAll(item.userId);
-    showToast(json.success ? "success" : "error",
-      json.success ? `"${item.email}" permanently deleted.` : json.message || "Failed.");
+    if (json.success) {
+      removeAll(item.userId);
+      showToast("success", `"${item.email}" permanently deleted.`);
+    } else {
+      showToast("error", json.message || "Failed to delete.");
+    }
   };
 
   const handleApprove = async (item) => {
-    setActionLoading(item.userId);
-    const json = await doFetch(`${API_BASE}/super-admin/companies/${item.userId}/approve`, "PUT", token);
+    const targetId = item.userId || item.companyProfile?.userId || item.companyId || item.companyProfile?.companyId;
+    setActionLoading(item.userId || targetId);
+    const json = await doFetch(`${API_BASE}/super-admin/companies/${targetId}/approve`, "PUT");
     setActionLoading(null);
-    patchAll(item.userId, { 
-      isActive: true, 
-      companyProfile: { ...(item.companyProfile || {}), isVerified: true } 
-    });
-    showToast(json.success ? "success" : "error",
-      json.success ? `Company "${item.companyProfile?.companyName || item.email}" approved & credentials emailed!` : json.message || "Failed.");
+    if (json.success) {
+      patchAll(item.userId, { 
+        isActive: true, 
+        companyProfile: { ...(item.companyProfile || {}), isVerified: true } 
+      });
+      showToast("success", `Company "${item.companyProfile?.companyName || item.email}" approved & credentials emailed!`);
+    } else {
+      showToast("error", json.message || "Failed to approve company in database.");
+    }
   };
 
   const handleReject = async (item) => {
-    setActionLoading(item.userId);
-    const json = await doFetch(`${API_BASE}/super-admin/companies/${item.userId}/reject`, "PUT", token);
+    const targetId = item.userId || item.companyProfile?.userId || item.companyId || item.companyProfile?.companyId;
+    setActionLoading(item.userId || targetId);
+    const json = await doFetch(`${API_BASE}/super-admin/companies/${targetId}/reject`, "PUT");
     setActionLoading(null);
-    patchAll(item.userId, { isActive: false });
-    showToast(json.success ? "success" : "error",
-      json.success ? "Company marked inactive / pending." : json.message || "Failed.");
+    if (json.success) {
+      patchAll(item.userId, { 
+        isActive: false, 
+        companyProfile: { ...(item.companyProfile || {}), isVerified: false } 
+      });
+      showToast("success", "Company marked inactive / pending.");
+    } else {
+      showToast("error", json.message || "Failed to update company status.");
+    }
   };
 
   const handleApproveInterviewer = async (item) => {
-    setActionLoading(item.userId);
-    const json = await doFetch(`${API_BASE}/super-admin/interviewers/${item.userId}/approve`, "PUT", token);
+    const targetId = item.userId || item.interviewerProfile?.userId || item.interviewerId || item.interviewerProfile?.interviewerId;
+    setActionLoading(item.userId || targetId);
+    const json = await doFetch(`${API_BASE}/super-admin/interviewers/${targetId}/approve`, "PUT");
     setActionLoading(null);
-    patchAll(item.userId, { 
-      isActive: true, 
-      interviewerProfile: { ...(item.interviewerProfile || {}), isVerified: true } 
-    });
-    showToast(json.success ? "success" : "error",
-      json.success ? `Interviewer "${item.email}" verified & active!` : json.message || "Failed.");
+    if (json.success) {
+      patchAll(item.userId, { 
+        isActive: true, 
+        interviewerProfile: { ...(item.interviewerProfile || {}), isVerified: true } 
+      });
+      showToast("success", `Interviewer "${item.email}" verified & active!`);
+    } else {
+      showToast("error", json.message || "Failed to verify interviewer.");
+    }
   };
 
   const handleRejectInterviewer = async (item) => {
-    setActionLoading(item.userId);
-    const json = await doFetch(`${API_BASE}/super-admin/interviewers/${item.userId}/reject`, "PUT", token);
+    const targetId = item.userId || item.interviewerProfile?.userId || item.interviewerId || item.interviewerProfile?.interviewerId;
+    setActionLoading(item.userId || targetId);
+    const json = await doFetch(`${API_BASE}/super-admin/interviewers/${targetId}/reject`, "PUT");
     setActionLoading(null);
-    patchAll(item.userId, { 
-      isActive: false, 
-      interviewerProfile: { ...(item.interviewerProfile || {}), isVerified: false } 
-    });
-    showToast(json.success ? "success" : "error",
-      json.success ? `Interviewer "${item.email}" marked pending / unverified.` : json.message || "Failed.");
+    if (json.success) {
+      patchAll(item.userId, { 
+        isActive: false, 
+        interviewerProfile: { ...(item.interviewerProfile || {}), isVerified: false } 
+      });
+      showToast("success", `Interviewer "${item.email}" marked pending / unverified.`);
+    } else {
+      showToast("error", json.message || "Failed to update interviewer status.");
+    }
+  };
+
+  const handleResendEmail = async (item) => {
+    const targetId = item.userId || item.companyProfile?.userId || item.companyId || item.companyProfile?.companyId;
+    setActionLoading(item.userId || targetId);
+    const isCompany = item.role === "admin" || item.role === "company" || !!item.companyProfile;
+    const url = isCompany
+      ? `${API_BASE}/super-admin/companies/${targetId}/resend-email`
+      : `${API_BASE}/super-admin/users/${targetId}/resend-email`;
+
+    const json = await doFetch(url, "POST");
+    setActionLoading(null);
+
+    if (json.success) {
+      if (json.data?.plainPassword) {
+        showToast("success", `Credentials re-sent to ${item.email}! Fresh Password: ${json.data.plainPassword}`);
+      } else {
+        showToast("success", json.message || `Email re-sent successfully to ${item.email}!`);
+      }
+    } else {
+      showToast("error", json.message || "Failed to re-send email.");
+    }
   };
 
   if (!user) return null;
@@ -270,9 +351,13 @@ export default function SuperAdminDashboard() {
 
   const isVerifiedAccount = (x) => {
     if (x.role === "interviewer") {
-      return x.interviewerProfile?.isVerified === true && x.isActive !== false;
+      return x.interviewerProfile?.isVerified === true && x.isActive !== false && x.isActive !== 0;
     }
-    return x.isActive !== false;
+    if (x.role === "admin" || x.role === "company") {
+      const compVerified = x.companyProfile ? (x.companyProfile.isVerified === true || x.companyProfile.isVerified === 1) : true;
+      return x.isActive !== false && x.isActive !== 0 && compVerified;
+    }
+    return x.isActive !== false && x.isActive !== 0;
   };
 
   const totalCount    = rawList.length;
@@ -398,12 +483,14 @@ export default function SuperAdminDashboard() {
             {SIDEBAR_TABS.map((tab) => {
               const Icon  = tab.icon;
               const count =
+                tab.id === "overview"     ? "All" :
                 tab.id === "companies"    ? companies.length :
                 tab.id === "interviewers" ? interviewers.length :
                 tab.id === "candidates"   ? candidates.length :
                 tab.id === "questions"    ? questionsCount :
                 tab.id === "bugs"         ? bugs.length :
-                tab.id === "sessions"     ? sessionsList.length : allUsers.length;
+                tab.id === "sessions"     ? sessionsList.length :
+                tab.id === "monitoring"   ? "Live" : allUsers.length;
               const active = activeSection === tab.id;
 
               return (
@@ -487,12 +574,34 @@ export default function SuperAdminDashboard() {
             </button>
           </div>
 
-          {activeSection === "bugs" ? (
+          {activeSection === "overview" ? (
+            <SuperAdminOverviewHome
+              user={user}
+              companies={companies}
+              interviewers={interviewers}
+              candidates={candidates}
+              questionsCount={questionsCount}
+              bugs={bugs}
+              sessionsList={sessionsList}
+              monitoringData={monitoringData}
+              onNavigateSection={(sec) => {
+                setActiveSection(sec);
+                setFilterTab("all");
+                setSearchTerm("");
+              }}
+              onOpenDetailModal={(item) => setDetailModal(item)}
+              onOpenConfirmModal={(action, item) => setConfirmModal({ action, item })}
+              onRefresh={() => fetchAllData(token)}
+              loading={loading}
+            />
+          ) : activeSection === "bugs" ? (
             <ReportBugTab user={user} isAdmin={true} />
           ) : activeSection === "sessions" ? (
-            <LoginSessionsTab user={user} isAdmin={true} />
+            <LoginSessionsTab user={user} isAdmin={true} isSuperAdmin={true} />
           ) : activeSection === "questions" ? (
             <QuestionManagerTab user={user} />
+          ) : activeSection === "monitoring" ? (
+            <SystemMonitoringTab user={user} />
           ) : (
             <div className="space-y-6">
 
@@ -711,8 +820,8 @@ export default function SuperAdminDashboard() {
                   </thead>
                   <tbody className={`divide-y ${isDark ? "divide-white/5" : "divide-slate-100"}`}>
                     {paginatedItems.map((item) => {
-                      const isActive    = item.isActive !== false;
-                      const isVerified  = item.role === "interviewer" ? item.interviewerProfile?.isVerified === true : isActive;
+                      const isActive    = item.isActive !== false && item.isActive !== 0;
+                      const isVerified  = isVerifiedAccount(item);
                       const isBusy      = actionLoading === item.userId;
                       const role        = item.role || "candidate";
                       const displayName =
@@ -780,26 +889,46 @@ export default function SuperAdminDashboard() {
                                 <Eye className="h-3.5 w-3.5" /> Details
                               </button>
 
-                              {/* Primary Approval Button: Approve / Revoke */}
+                              {/* Primary Approval Button: Approve / Revoke / Resend */}
                               {isCompanySection && (
-                                !isActive ? (
-                                  <button
-                                    disabled={isBusy}
-                                    onClick={() => handleApprove(item)}
-                                    title="Approve Company"
-                                    className="px-3 py-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-sm"
-                                  >
-                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Approve
-                                  </button>
+                                (!isVerified || !isActive) ? (
+                                  <>
+                                    <button
+                                      disabled={isBusy}
+                                      onClick={() => handleApprove(item)}
+                                      title="Approve Company & Send Credentials"
+                                      className="px-3 py-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-sm"
+                                    >
+                                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Approve
+                                    </button>
+                                    <button
+                                      disabled={isBusy}
+                                      onClick={() => handleResendEmail(item)}
+                                      title="Re-send Pending Review Email"
+                                      className="px-2.5 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-bold flex items-center gap-1 transition-all"
+                                    >
+                                      <Mail className="h-3.5 w-3.5 text-amber-400" /> Re-send
+                                    </button>
+                                  </>
                                 ) : (
-                                  <button
-                                    disabled={isBusy}
-                                    onClick={() => handleReject(item)}
-                                    title="Revoke / Deactivate Company"
-                                    className="px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-bold flex items-center gap-1.5 transition-all"
-                                  >
-                                    <XCircle className="h-3.5 w-3.5 text-amber-400" /> Revoke
-                                  </button>
+                                  <>
+                                    <button
+                                      disabled={isBusy}
+                                      onClick={() => handleResendEmail(item)}
+                                      title="Re-send Credentials Email with Fresh Password"
+                                      className="px-3 py-1.5 rounded-xl border border-cyan-500/40 bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
+                                    >
+                                      <Mail className="h-3.5 w-3.5 text-cyan-400" /> Re-send Mail
+                                    </button>
+                                    <button
+                                      disabled={isBusy}
+                                      onClick={() => handleReject(item)}
+                                      title="Revoke / Deactivate Company"
+                                      className="px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-bold flex items-center gap-1.5 transition-all"
+                                    >
+                                      <XCircle className="h-3.5 w-3.5 text-amber-400" /> Revoke
+                                    </button>
+                                  </>
                                 )
                               )}
 
@@ -814,15 +943,37 @@ export default function SuperAdminDashboard() {
                                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Approve
                                   </button>
                                 ) : (
-                                  <button
-                                    disabled={isBusy}
-                                    onClick={() => handleRejectInterviewer(item)}
-                                    title="Revoke Verification"
-                                    className="px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-bold flex items-center gap-1.5 transition-all"
-                                  >
-                                    <XCircle className="h-3.5 w-3.5 text-amber-400" /> Revoke
-                                  </button>
+                                  <>
+                                    <button
+                                      disabled={isBusy}
+                                      onClick={() => handleResendEmail(item)}
+                                      title="Re-send Welcome / Credentials Email"
+                                      className="px-2.5 py-1.5 rounded-xl border border-cyan-500/40 bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25 text-xs font-bold flex items-center gap-1 transition-all shadow-sm"
+                                    >
+                                      <Mail className="h-3.5 w-3.5 text-cyan-400" /> Re-send
+                                    </button>
+                                    <button
+                                      disabled={isBusy}
+                                      onClick={() => handleRejectInterviewer(item)}
+                                      title="Revoke Verification"
+                                      className="px-3 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-xs font-bold flex items-center gap-1.5 transition-all"
+                                    >
+                                      <XCircle className="h-3.5 w-3.5 text-amber-400" /> Revoke
+                                    </button>
+                                  </>
                                 )
+                              )}
+
+                              {/* Re-send Mail button for candidates or other users */}
+                              {!isCompanySection && !isInterviewerSection && (
+                                <button
+                                  disabled={isBusy}
+                                  onClick={() => handleResendEmail(item)}
+                                  title="Re-send Credentials / Welcome Email"
+                                  className="px-2.5 py-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 text-xs font-bold flex items-center gap-1 transition-all shadow-sm"
+                                >
+                                  <Mail className="h-3.5 w-3.5 text-cyan-400" /> Re-send
+                                </button>
                               )}
 
                               {/* Restore or Deactivate Account Icon Action */}
@@ -1245,6 +1396,20 @@ export default function SuperAdminDashboard() {
               </button>
 
               <div className="flex items-center gap-2">
+                <button
+                  disabled={actionLoading === (detailModal.userId || detailModal.companyId || detailModal.companyProfile?.userId)}
+                  onClick={() => handleResendEmail(detailModal)}
+                  className="px-4 py-2 rounded-xl border border-cyan-500/40 bg-cyan-500/15 text-cyan-300 font-extrabold text-xs shadow hover:bg-cyan-500/25 flex items-center gap-1.5 transition-all"
+                  title="Re-send Credentials or Notification Email"
+                >
+                  {actionLoading === (detailModal.userId || detailModal.companyId || detailModal.companyProfile?.userId) ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Mail className="h-3.5 w-3.5 text-cyan-400" />
+                  )}
+                  Re-send Mail
+                </button>
+
                 {detailModal.isActive === false ? (
                   <button
                     onClick={() => handleRestore(detailModal)}

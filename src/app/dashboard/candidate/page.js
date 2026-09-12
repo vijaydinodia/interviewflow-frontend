@@ -11,15 +11,102 @@ import {
   HelpCircle, Laptop, Mic, CheckCircle, ArrowRight, Lock,
   Home, Rocket, Star, Award, Zap, Compass, Layers, X, Settings, LayoutDashboard,
   Radio, CheckSquare, Square, ChevronLeft, History, RotateCcw, Trash2,
-  Users, Calendar, Send, MessageSquare, Search, Filter, Menu, LogOut, FileCode, Bug
+  Users, Calendar, Send, MessageSquare, Search, Filter, Menu, LogOut, FileCode, Bug,
+  AlertTriangle, Building2, Bot, Trophy, BarChart2, Bookmark, Target
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
 import ProtectedRoute from "@/components/ProtectedRoute/page";
 import DashboardHeader from "../_components/DashboardHeader";
 import ProblemSolvingTab from "@/components/ProblemSolvingTab/page";
+import DsaProfileTab from "@/components/DsaProfileTab/page";
 import ReportBugTab from "@/components/ReportBugTab/page";
 import LoginSessionsTab from "@/components/LoginSessionsTab/page";
+import CandidateJobsTab from "./_components/CandidateJobsTab";
 import { api } from "@/api";
+
+/**
+ * Determine the exact live meeting status based on scheduled time slot and completion state
+ */
+export function getMeetingLinkStatus(req) {
+  if (!req || req.status !== "accepted") {
+    return { state: "INACTIVE", label: "Pending Acceptance", isJoinable: false };
+  }
+
+  if (req.status === "completed") {
+    return { state: "COMPLETED", label: "Session Completed", isJoinable: false };
+  }
+
+  const now = new Date();
+  let start = req.slotStartTime ? new Date(req.slotStartTime) : null;
+  let end = req.slotEndTime ? new Date(req.slotEndTime) : null;
+
+  // Fallback: parse from scheduledDate + scheduledTime if explicit datetime is missing
+  if (!start || isNaN(start.getTime()) || !end || isNaN(end.getTime())) {
+    const dStr = req.scheduledDate || now.toISOString().split("T")[0];
+    const tStr = req.scheduledTime || "";
+    if (!tStr || tStr.toLowerCase().includes("immediate") || tStr.toLowerCase().includes("now")) {
+      return { state: "ACTIVE", label: "Live Meeting Active", isJoinable: true };
+    }
+    const parts = tStr.split(/-|to/i).map((s) => s.trim());
+    const parseTimePart = (s) => {
+      const isPM = /pm/i.test(s);
+      const isAM = /am/i.test(s);
+      const clean = s.replace(/[^\d:]/g, "");
+      const [hRaw, mRaw] = clean.split(":");
+      let h = parseInt(hRaw || "0", 10);
+      let m = parseInt(mRaw || "0", 10);
+      if (isPM && h < 12) h += 12;
+      if (isAM && h === 12) h = 0;
+      return { h, m };
+    };
+    if (parts.length >= 1) {
+      const p0 = parseTimePart(parts[0]);
+      start = new Date(`${dStr}T${String(p0.h).padStart(2, "0")}:${String(p0.m).padStart(2, "0")}:00`);
+      if (parts.length > 1) {
+        const p1 = parseTimePart(parts[1]);
+        end = new Date(`${dStr}T${String(p1.h).padStart(2, "0")}:${String(p1.m).padStart(2, "0")}:00`);
+      } else {
+        end = new Date(start.getTime() + 60 * 60 * 1000);
+      }
+    }
+  }
+
+  if (start && end && !isNaN(start.getTime()) && !isNaN(end.getTime())) {
+    // 5-minute buffer before start
+    const bufferStart = new Date(start.getTime() - 5 * 60 * 1000);
+
+    if (now < bufferStart) {
+      const timeRemainingMs = start.getTime() - now.getTime();
+      const minsRemaining = Math.ceil(timeRemainingMs / (1000 * 60));
+      return {
+        state: "UPCOMING",
+        label: `Unlocks at ${req.scheduledTime || start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (${minsRemaining}m remaining)`,
+        isJoinable: false,
+        startTime: start,
+      };
+    }
+
+    if (now >= bufferStart && now <= end) {
+      return {
+        state: "ACTIVE",
+        label: "Live Meeting Active",
+        isJoinable: true,
+        endTime: end,
+      };
+    }
+
+    if (now > end) {
+      return {
+        state: "EXPIRED_UNCOMPLETED",
+        label: "Time slot completed • Session not marked complete",
+        isJoinable: false,
+        endTime: end,
+      };
+    }
+  }
+
+  return { state: "ACTIVE", label: "Live Meeting Active", isJoinable: true };
+}
 
 const CodeEditorWithRunner = dynamic(
   () => import("@/components/CodeEditorWithRunner/page"),
@@ -205,18 +292,110 @@ const MENTORSHIP_TRACKS = [
 ];
 
 const SIDEBAR_ITEMS = [
-  { id: "home",         label: "Overview & Features",        icon: LayoutDashboard, badge: null },
-  { id: "interviewers", label: "Matching Interviewers",      icon: Users,           badge: "matchCount" },
-  { id: "requests",     label: "My Interview Requests",      icon: Send,            badge: "requestCount" },
-  { id: "guidance",     label: "1 : 1 Guidance & Mentorship", icon: Compass,         badge: null },
-  { id: "problems",     label: "DSA & Problem Solving",      icon: FileCode,        badge: null },
-  { id: "flowcode",     label: "FlowCode Playground",        icon: Code2,           badge: null },
-  { id: "readiness",    label: "Profile & Readiness",        icon: ShieldCheck,     badge: "pct" },
-  { id: "bugs",         label: "Report Bug / Issues",        icon: Bug,             badge: null },
-  { id: "sessions",     label: "Login Sessions & Security",  icon: Laptop,          badge: null },
+  { id: "home",         label: "Dashboard",             icon: LayoutDashboard, badge: null },
+  { id: "ai-interview", label: "AI Interview",          icon: Bot,             badge: null },
+  { id: "interviewers", label: "1:1 Mock Interview",    icon: Users,           badge: "matchCount" },
+  { id: "flowcode",     label: "Coding Practice",       icon: Terminal,        badge: null },
+  { id: "problems",     label: "Problems",              icon: CheckSquare,     badge: null },
+  { id: "contests",     label: "Contests",              icon: Trophy,          badge: null },
+  { id: "guidance",     label: "Interview Roadmap",     icon: MapPin,          badge: null },
+  { id: "resume-review",label: "Resume Review",         icon: FileText,        badge: null },
+  { id: "analytics",    label: "Analytics",             icon: BarChart2,       badge: null },
+  { id: "bookmarks",    label: "Bookmarks",             icon: Bookmark,        badge: null },
+  { id: "requests",     label: "History",               icon: History,         badge: "requestCount" },
+  { id: "readiness",    label: "Settings",              icon: Settings,        badge: "pct" },
 ];
 
 const TABS = SIDEBAR_ITEMS;
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CUSTOM RICH ILLUSTRATIONS MATCHING REFERENCE SCREENSHOT
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const RobotAvatarIllustration = () => (
+  <svg className="w-20 h-20 sm:w-24 sm:h-24 drop-shadow-2xl" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="50" cy="52" r="34" fill="#0F1F38" stroke="#38BDF8" strokeWidth="2.5" />
+    <path d="M50 14V22" stroke="#38BDF8" strokeWidth="3" strokeLinecap="round" />
+    <circle cx="50" cy="12" r="4" fill="#6366F1" />
+    <rect x="22" y="32" width="56" height="38" rx="16" fill="#1E293B" stroke="#60A5FA" strokeWidth="2.5" />
+    <rect x="28" y="38" width="44" height="26" rx="10" fill="#0B132B" />
+    <circle cx="39" cy="51" r="5" fill="#38BDF8" />
+    <circle cx="61" cy="51" r="5" fill="#38BDF8" />
+    <circle cx="41" cy="49" r="1.5" fill="#FFFFFF" />
+    <circle cx="63" cy="49" r="1.5" fill="#FFFFFF" />
+    <path d="M44 58C46 60 54 60 56 58" stroke="#38BDF8" strokeWidth="2" strokeLinecap="round" />
+    <rect x="15" y="44" width="7" height="14" rx="3.5" fill="#3B82F6" />
+    <rect x="78" y="44" width="7" height="14" rx="3.5" fill="#3B82F6" />
+    <path d="M30 76C30 76 38 84 50 84C62 84 70 76 70 76" stroke="#475569" strokeWidth="3" strokeLinecap="round" />
+  </svg>
+);
+
+const ExpertMockIllustration = () => (
+  <svg className="w-16 h-16 sm:w-20 sm:h-20 drop-shadow-md" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="36" y="10" width="36" height="30" rx="6" fill="#F1F5F9" stroke="#94A3B8" strokeWidth="2" />
+    <rect x="36" y="10" width="36" height="8" rx="6" fill="#6366F1" />
+    <rect x="42" y="24" width="6" height="4" rx="1" fill="#CBD5E1" />
+    <rect x="52" y="24" width="6" height="4" rx="1" fill="#CBD5E1" />
+    <rect x="62" y="24" width="6" height="4" rx="1" fill="#6366F1" />
+    <rect x="42" y="31" width="6" height="4" rx="1" fill="#CBD5E1" />
+    <rect x="52" y="31" width="6" height="4" rx="1" fill="#22C55E" />
+    {/* Interviewer & Candidate Avatars */}
+    <circle cx="24" cy="38" r="10" fill="#FBBF24" />
+    <path d="M12 60C12 52 18 48 24 48C30 48 36 52 36 60" fill="#3B82F6" />
+    <circle cx="56" cy="48" r="9" fill="#F472B6" />
+    <path d="M44 68C44 61 50 57 56 57C62 57 68 61 68 68" fill="#8B5CF6" />
+  </svg>
+);
+
+const CodingPuzzleIllustration = () => (
+  <svg className="w-16 h-16 sm:w-20 sm:h-20 drop-shadow-md" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="10" y="12" width="46" height="34" rx="6" fill="#1E293B" stroke="#64748B" strokeWidth="2" />
+    <circle cx="17" cy="18" r="2" fill="#EF4444" />
+    <circle cx="23" cy="18" r="2" fill="#F59E0B" />
+    <circle cx="29" cy="18" r="2" fill="#10B981" />
+    <path d="M18 28L24 33L18 38" stroke="#38BDF8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M28 38H36" stroke="#A855F7" strokeWidth="2" strokeLinecap="round" />
+    {/* Puzzle Piece */}
+    <rect x="36" y="34" width="34" height="34" rx="8" fill="#6366F1" stroke="#818CF8" strokeWidth="2" />
+    <circle cx="53" cy="34" r="5" fill="#6366F1" />
+    <circle cx="70" cy="51" r="5" fill="#818CF8" />
+    <path d="M45 47L51 52L45 57M56 52H63" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const SystemDesignDiagramIcon = () => (
+  <svg className="w-12 h-12" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="18" y="4" width="12" height="9" rx="2.5" fill="#EEF2FF" stroke="#6366F1" strokeWidth="2" />
+    <path d="M24 13V22M12 22H36M12 22V28M36 22V28" stroke="#818CF8" strokeWidth="2" strokeLinecap="round" />
+    <rect x="6" y="28" width="12" height="9" rx="2.5" fill="#EEF2FF" stroke="#6366F1" strokeWidth="2" />
+    <rect x="30" y="28" width="12" height="9" rx="2.5" fill="#EEF2FF" stroke="#6366F1" strokeWidth="2" />
+  </svg>
+);
+
+const DynamicProgrammingIcon = () => (
+  <svg className="w-12 h-12" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="6" y="6" width="36" height="36" rx="8" fill="#0F172A" stroke="#334155" strokeWidth="2" />
+    <rect x="10" y="10" width="12" height="12" rx="3" fill="#3B82F6" />
+    <text x="12" y="19" fill="white" fontSize="8" fontWeight="900" fontFamily="sans-serif">&lt;&gt;</text>
+    <rect x="26" y="10" width="12" height="12" rx="3" fill="#6366F1" />
+    <text x="28" y="19" fill="white" fontSize="8" fontWeight="900" fontFamily="sans-serif">JS</text>
+    <rect x="10" y="26" width="12" height="12" rx="3" fill="#EC4899" />
+    <text x="12" y="35" fill="white" fontSize="8" fontWeight="900" fontFamily="sans-serif">DP</text>
+    <rect x="26" y="26" width="12" height="12" rx="3" fill="#10B981" />
+    <text x="28" y="35" fill="white" fontSize="8" fontWeight="900" fontFamily="sans-serif">O(n)</text>
+  </svg>
+);
+
+const BehavioralInterviewIcon = () => (
+  <svg className="w-12 h-12" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="14" cy="18" r="6" fill="#3B82F6" />
+    <path d="M6 36C6 30 10 27 14 27C18 27 22 30 22 36" fill="#60A5FA" />
+    <circle cx="34" cy="18" r="6" fill="#8B5CF6" />
+    <path d="M26 36C26 30 30 27 34 27C38 27 42 30 42 36" fill="#A78BFA" />
+    <rect x="18" y="8" width="12" height="9" rx="3" fill="#F1F5F9" stroke="#94A3B8" strokeWidth="1.5" />
+    <path d="M22 13H26" stroke="#64748B" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
 
 export default function CandidateDashboard() {
   const router    = useRouter();
@@ -226,11 +405,47 @@ export default function CandidateDashboard() {
   const [token, setToken]               = useState(null);
   const [activeTab, setActiveTab]       = useState("home");
   const [sidebarOpen, setSidebarOpen]   = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [isResizing, setIsResizing]     = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profile, setProfile]           = useState(null);
   const [readiness, setReadiness]       = useState(null);
   const [loading, setLoading]           = useState(true);
   const [toast, setToast]               = useState(null);
+  const [connectionsCount, setConnectionsCount] = useState(0);
+  const [dashboardSearch, setDashboardSearch] = useState("");
+
+  // Smooth drag-to-resize sidebar handlers
+  const handleMouseDownResize = useCallback((e) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing) return;
+      const newWidth = Math.min(460, Math.max(180, e.clientX));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizing]);
 
   const [stepModalOpen, setStepModalOpen] = useState(false);
   const [currentStep, setCurrentStep]     = useState(1);
@@ -267,6 +482,62 @@ export default function CandidateDashboard() {
     candidateNotes: "",
   });
 
+  // Link renewal modal states
+  const [requestLinkModalOpen, setRequestLinkModalOpen] = useState(false);
+  const [requestLinkTarget, setRequestLinkTarget]       = useState(null);
+  const [requestLinkReason, setRequestLinkReason]       = useState("");
+  const [requestLinkLoading, setRequestLinkLoading]     = useState(false);
+
+  // Interview Feedback inspection state
+  const [candidateFeedbackModal, setCandidateFeedbackModal] = useState(null);
+  const [feedbackLoading, setFeedbackLoading]               = useState(false);
+
+  const handleOpenFeedbackView = async (requestId) => {
+    try {
+      setFeedbackLoading(true);
+      const res = await api.get(`/interview-requests/${requestId}/feedback`);
+      if (res.data?.success && res.data?.data) {
+        setCandidateFeedbackModal(res.data.data);
+      } else {
+        showToast("error", "Interview evaluation feedback is not available yet.");
+      }
+    } catch (err) {
+      showToast("error", err.response?.data?.message || "Failed to load interview feedback.");
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
+
+  const openRequestLinkModal = (req) => {
+    setRequestLinkTarget(req);
+    setRequestLinkReason("");
+    setRequestLinkModalOpen(true);
+  };
+
+  const handleRequestNewLink = async (e) => {
+    if (e) e.preventDefault();
+    if (!requestLinkTarget) return;
+
+    try {
+      setRequestLinkLoading(true);
+      const res = await api.post(`/interview-requests/${requestLinkTarget.requestId}/request-new-link`, {
+        reason: requestLinkReason || "Time slot window ended before completion. Requesting an updated meeting link.",
+      });
+      const data = res.data;
+      if (data.success) {
+        showToast("success", "🔔 Meeting link renewal request sent to interviewer! You will be notified once reviewed.");
+        setRequestLinkModalOpen(false);
+        fetchMyRequestsData();
+      } else {
+        showToast("error", data.message || "Failed to submit link request.");
+      }
+    } catch (err) {
+      showToast("error", err.response?.data?.message || err.message || "Error requesting new link.");
+    } finally {
+      setRequestLinkLoading(false);
+    }
+  };
+
   const showToast = useCallback((type, message) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3500);
@@ -279,7 +550,7 @@ export default function CandidateDashboard() {
     setUser(parsed);
     const t = localStorage.getItem("interviewflow_token") || parsed.token;
     setToken(t);
-    fetchData(t);
+    fetchData(t, parsed.userId);
 
     const savedRecents = localStorage.getItem("interviewflow_recent_sessions");
     if (savedRecents) {
@@ -289,7 +560,7 @@ export default function CandidateDashboard() {
     }
   }, [router]);
 
-  const fetchData = async () => {
+  const fetchData = async (overrideToken, userIdParam) => {
     setLoading(true);
     try {
       const [profileRes, statusRes] = await Promise.all([
@@ -311,8 +582,16 @@ export default function CandidateDashboard() {
         setReadiness(statusJson.data);
       }
 
-      fetchInterviewersData();
+      fetchInterviewersData(null, null, userIdParam);
       fetchMyRequestsData();
+
+      api.get("/jobs/candidate/connections")
+        .then((res) => {
+          if (res.data?.success && Array.isArray(res.data.data)) {
+            setConnectionsCount(res.data.data.length);
+          }
+        })
+        .catch(() => {});
     } catch {
       showToast("error", "Failed to load profile data.");
     } finally {
@@ -320,12 +599,15 @@ export default function CandidateDashboard() {
     }
   };
 
-  const fetchInterviewersData = async (roleParam, searchParam) => {
+  const fetchInterviewersData = async (roleParam, searchParam, candidateId) => {
     try {
       const queryParams = new URLSearchParams();
       if (roleParam || filterRole) queryParams.append("role", roleParam || filterRole);
       if (filterLanguage) queryParams.append("language", filterLanguage);
       if (searchParam || interviewerSearch) queryParams.append("search", searchParam || interviewerSearch);
+      
+      const cId = candidateId || user?.userId;
+      if (cId) queryParams.append("candidateUserId", cId);
 
       const res = await api.get(`/interview-requests/matching-interviewers?${queryParams.toString()}`);
       const json = res.data;
@@ -467,7 +749,7 @@ export default function CandidateDashboard() {
 
       if (json.success) {
         const msg = isDirect
-          ? `Direct interview request submitted! Room: ${generatedRoom}. Interviewer notified via Brevo email.`
+          ? `Direct interview request submitted! Room: ${generatedRoom}. Interviewer notified via email.`
           : `Open interview request broadcasted! It is now visible on matching interviewers' dashboards.`;
         showToast("success", msg);
         setBookingModalOpen(false);
@@ -620,20 +902,25 @@ export default function CandidateDashboard() {
 
       <div className="flex flex-1 overflow-hidden relative min-h-0">
 
-        {/* ══════════════════ CANDIDATE SIDEBAR (FIXED) ══════════════════ */}
-        <aside className={`h-full flex-shrink-0 flex flex-col border-r transition-all duration-300 ${sideBg} ${
-          sidebarOpen ? "w-64" : "w-18 sm:w-20"
-        } hidden md:flex overflow-hidden`}>
+        {/* ══════════════════ CANDIDATE SIDEBAR (RESIZABLE) ══════════════════ */}
+        <aside
+          style={{ width: sidebarOpen ? `${sidebarWidth}px` : undefined }}
+          className={`h-full flex-shrink-0 flex flex-col border-r relative group select-none ${
+            isResizing ? "transition-none" : "transition-all duration-200"
+          } ${sideBg} ${
+            sidebarOpen ? "" : "w-18 sm:w-20"
+          } hidden md:flex overflow-hidden`}
+        >
 
           {/* Sidebar Top Header & Collapse Button */}
           <div className={`flex-shrink-0 flex items-center justify-between px-4 py-4 border-b ${isDark ? "border-white/10" : "border-slate-200"}`}>
             {sidebarOpen && (
-              <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-xl bg-gradient-to-tr from-sky-400 to-cyan-400 flex items-center justify-center font-black text-xs text-[#0B151E]">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-500 flex items-center justify-center font-black text-xs text-white shadow-md shadow-indigo-500/25">
                   IF
                 </div>
-                <span className="font-extrabold text-xs uppercase tracking-wider text-cyan-400">
-                  Workspace
+                <span className="font-extrabold text-sm tracking-tight text-slate-900 dark:text-white">
+                  Interview Flow
                 </span>
               </div>
             )}
@@ -660,14 +947,21 @@ export default function CandidateDashboard() {
                   title={!sidebarOpen ? item.label : undefined}
                   className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-xs font-bold transition-all ${
                     active
-                      ? "bg-gradient-to-r from-sky-400 to-cyan-400 text-[#0B151E] font-black shadow-lg"
+                      ? "bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 text-white font-extrabold shadow-lg shadow-indigo-500/25"
                       : isDark
                       ? "text-slate-400 hover:text-white hover:bg-white/5"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                   } ${!sidebarOpen ? "justify-center px-2" : ""}`}
                 >
-                  <Icon className={`h-4.5 w-4.5 shrink-0 ${active ? "text-[#0B151E]" : "text-cyan-400"}`} />
+                  <Icon className={`h-4.5 w-4.5 shrink-0 ${active ? "text-white" : "text-slate-400"}`} />
                   {sidebarOpen && <span className="truncate flex-1 text-left">{item.label}</span>}
+                  {sidebarOpen && item.id === "connections" && (
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+                      active ? "bg-[#0B151E]/20 text-[#0B151E]" : "bg-purple-500/20 text-purple-300"
+                    }`}>
+                      {connectionsCount}
+                    </span>
+                  )}
                   {sidebarOpen && item.id === "readiness" && (
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
                       active ? "bg-[#0B151E]/20 text-[#0B151E]" : isReady ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400"
@@ -751,6 +1045,18 @@ export default function CandidateDashboard() {
               )}
             </div>
           </div>
+
+          {/* Interactive Drag-to-Resize Handle */}
+          {sidebarOpen && (
+            <div
+              onMouseDown={handleMouseDownResize}
+              onDoubleClick={() => setSidebarWidth(260)}
+              title="Drag to resize sidebar width • Double click to reset"
+              className="absolute top-0 right-0 w-2 h-full cursor-col-resize hover:bg-cyan-400/80 active:bg-cyan-400 transition-colors z-30 group-hover:bg-cyan-400/20 flex items-center justify-center"
+            >
+              <div className="w-0.5 h-8 rounded-full bg-slate-500/40 group-hover:bg-cyan-400 transition-colors" />
+            </div>
+          )}
         </aside>
 
         {/* ══════════════════ MAIN CONTENT WORKSPACE ══════════════════ */}
@@ -794,149 +1100,315 @@ export default function CandidateDashboard() {
             </div>
           )}
 
-          {/* Header Bar inside workspace */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-sky-400 via-cyan-400 to-teal-400 p-0.5 shadow-md flex items-center justify-center">
-                <div className={`h-full w-full rounded-[14px] ${isDark ? "bg-[#080E18]" : "bg-white"} flex items-center justify-center font-extrabold text-lg text-cyan-400`}>
-                  {(user.firstName || user.username || "C")[0].toUpperCase()}
-                </div>
-              </div>
-              <div>
-                <h1 className="text-xl font-extrabold flex items-center gap-2">
-                  Welcome, {user.firstName || user.username}!
-                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-black border ${
-                    isReady ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-400" : "border-amber-400/30 bg-amber-400/10 text-amber-400"
-                  }`}>
-                    {isReady ? "Interview Ready ✓" : `${pct}% Profile Complete`}
-                  </span>
-                </h1>
-                <p className="text-xs text-slate-400 mt-0.5">{user.email} • Candidate Workspace</p>
-              </div>
+          {/* Top Bar Header matching reference UI */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                {activeTab === "home" ? "Dashboard" : TABS.find((t) => t.id === activeTab)?.label || "Workspace"}
+              </h1>
             </div>
 
-            <button
-              onClick={() => fetchData(token)}
-              className={`flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl border transition-colors self-start sm:self-auto ${
-                isDark ? "border-white/10 hover:bg-white/5 text-slate-300" : "border-slate-200 hover:bg-slate-100 text-slate-600"
-              }`}
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-              Refresh
-            </button>
+            <div className="flex items-center gap-4">
+              {/* Pill Search Input */}
+              <div className="relative min-w-[260px] sm:min-w-[320px]">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={dashboardSearch}
+                  onChange={(e) => setDashboardSearch(e.target.value)}
+                  placeholder="Search problems, topics, interviews..."
+                  className="w-full pl-9 pr-4 py-2 text-xs rounded-full bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 shadow-sm transition-all"
+                />
+              </div>
+
+              {/* User profile avatar & name */}
+              <div
+                onClick={() => router.push("/profile")}
+                className="flex flex-col items-center cursor-pointer group"
+                title="View Profile"
+              >
+                <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-500 to-sky-400 p-0.5 shadow-md group-hover:scale-105 transition-transform">
+                  <div className="h-full w-full rounded-full bg-slate-900 overflow-hidden flex items-center justify-center font-black text-sm text-white">
+                    {profile?.profilePicture ? (
+                      <img src={profile.profilePicture} alt="User" className="h-full w-full object-cover" />
+                    ) : (
+                      (user.firstName || user.username || "V")[0].toUpperCase()
+                    )}
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 group-hover:text-indigo-400 transition-colors mt-0.5">
+                  {user.firstName || user.username || "Vikas"}
+                </span>
+              </div>
+            </div>
           </div>
 
           {loading ? (
             <div className="flex items-center justify-center py-32">
-              <Loader2 className="h-8 w-8 animate-spin text-sky-400" />
+              <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
             </div>
           ) : (
             <>
-              {/* ══════════════ TAB 1: CANDIDATE HOME PAGE & FEATURES ══════════════ */}
+              {/* ══════════════ TAB 1: CANDIDATE DASHBOARD (EXACT SCREENSHOT UI) ══════════════ */}
               {activeTab === "home" && (
-                <div className="space-y-6">
+                <div className="space-y-7">
 
-                  {/* Hero Feature Welcome Banner */}
-                  <div className={`p-6 sm:p-8 rounded-3xl border relative overflow-hidden bg-gradient-to-br from-cyan-500/10 via-sky-500/5 to-teal-500/10 border-cyan-500/30 shadow-2xl`}>
-                    <div className="max-w-2xl space-y-3">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-bold">
-                        <Sparkles className="h-3.5 w-3.5" /> Candidate Platform Features
+                  {/* Welcome Greeting */}
+                  <div>
+                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      Welcome back, {user.firstName || user.username || "Vikas"} <span className="animate-bounce">👋</span>
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                      Your journey to your dream job continues. Choose your next step.
+                    </p>
+                  </div>
+
+                  {/* 3 Top Action Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {/* Card 1: Adaptive AI Interview (Dark Card) */}
+                    <div className="rounded-3xl p-6 bg-[#0C1E3A] border border-blue-900/50 text-white shadow-xl flex flex-col justify-between relative overflow-hidden group hover:border-indigo-500/50 transition-all">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase bg-white/10 text-cyan-300 border border-white/10 backdrop-blur-sm">
+                            AI POWERED
+                          </span>
+                        </div>
+
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="max-w-[180px] sm:max-w-[200px]">
+                            <h3 className="text-lg font-black text-white leading-tight">
+                              Adaptive AI Interview
+                            </h3>
+                            <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                              Practice with an adaptive AI Interviewer and receive real-time feedback.
+                            </p>
+                          </div>
+                          <div className="shrink-0 -mt-2 -mr-1">
+                            <RobotAvatarIllustration />
+                          </div>
+                        </div>
                       </div>
-                      <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-100">
-                        Master Your Technical Interviews with Confidence
-                      </h2>
-                      <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                        Access your 1-to-1 live coding interview room, match with verified engineering interviewers, explore interview guidance, and track readiness.
-                      </p>
-                      <div className="flex flex-wrap gap-3 pt-2">
-                        <button
-                          onClick={() => setActiveTab("interviewers")}
-                          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-400 to-cyan-400 text-[#0B151E] font-extrabold text-xs shadow-lg hover:brightness-110 flex items-center gap-2 transition-all"
-                        >
-                          <Users className="h-4 w-4" /> View Matching Interviewers
-                        </button>
 
+                      <div className="pt-4">
                         <button
                           onClick={() => openStepWizard()}
-                          className="px-5 py-2.5 rounded-xl bg-cyan-500/10 border border-cyan-400/40 text-cyan-400 hover:bg-cyan-400/20 font-extrabold text-xs flex items-center gap-2 transition-all"
+                          className="px-5 py-2.5 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-xs shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 transition-all hover:scale-105"
                         >
-                          <Video className="h-4 w-4" /> Start 1-to-1 Room
+                          <span>Start Interview</span>
+                          <ArrowRight className="h-3.5 w-3.5" />
                         </button>
+                      </div>
+                    </div>
 
+                    {/* Card 2: 1:1 Expert Mock Interviews (White Card) */}
+                    <div className="rounded-3xl p-6 bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white shadow-sm hover:shadow-md flex flex-col justify-between relative overflow-hidden transition-all">
+                      <div className="space-y-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="max-w-[180px] sm:max-w-[200px]">
+                            <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                              1:1 Expert Mock<br />Interviews
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                              Book an industry expert experienced consultations.
+                            </p>
+                          </div>
+                          <div className="shrink-0 -mr-1">
+                            <ExpertMockIllustration />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-4">
                         <button
-                          onClick={() => setActiveTab("guidance")}
-                          className={`px-5 py-2.5 rounded-xl border font-extrabold text-xs flex items-center gap-2 transition-all ${
-                            isDark ? "border-white/15 hover:bg-white/5 text-slate-200" : "border-slate-300 hover:bg-slate-100 text-slate-800"
-                          }`}
+                          onClick={() => setActiveTab("interviewers")}
+                          className="px-5 py-2.5 rounded-full border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 font-extrabold text-xs flex items-center gap-1.5 transition-all hover:scale-105"
                         >
-                          <BookOpen className="h-4 w-4" /> View Preparation Guidance
+                          <span>Book Now</span>
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Coding & Problem Solving (White Card) */}
+                    <div className="rounded-3xl p-6 bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white shadow-sm hover:shadow-md flex flex-col justify-between relative overflow-hidden transition-all">
+                      <div className="space-y-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="max-w-[180px] sm:max-w-[200px]">
+                            <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                              Coding &<br />Problem Solving
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                              Book an industry solving problems and track progress.
+                            </p>
+                          </div>
+                          <div className="shrink-0 -mr-1">
+                            <CodingPuzzleIllustration />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-4">
+                        <button
+                          onClick={() => setActiveTab("flowcode")}
+                          className="px-5 py-2.5 rounded-full border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 font-extrabold text-xs flex items-center gap-1.5 transition-all hover:scale-105"
+                        >
+                          <span>Start Coding</span>
+                          <ArrowRight className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* Primary 2 Core Feature Cards */}
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                      <Layers className="h-4 w-4 text-cyan-400" /> Featured Options
+                  {/* Your Progress Section */}
+                  <div className="space-y-3.5">
+                    <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                      Your Progress
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {FEATURED_CAPABILITIES.map((feat) => {
-                        const Icon = feat.icon;
-                        return (
-                          <div
-                            key={feat.id}
-                            className={`p-6 rounded-3xl border shadow-xl flex flex-col justify-between space-y-4 bg-gradient-to-br ${feat.gradient} ${cardBg} ${feat.border} transition-all`}
-                          >
-                            <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <div className="p-3 rounded-2xl bg-white/10 border border-white/10 text-cyan-300 w-fit">
-                                  <Icon className="h-6 w-6" />
-                                </div>
-                                <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border border-white/10 bg-black/20 text-slate-300">
-                                  {feat.tag}
-                                </span>
-                              </div>
-                              <div>
-                                <h4 className="text-lg font-black text-slate-100">{feat.title}</h4>
-                                <p className="text-xs font-bold text-cyan-400 mt-0.5">{feat.subtitle}</p>
-                                <p className="text-xs text-slate-300 mt-2 leading-relaxed">{feat.desc}</p>
-                              </div>
-                            </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {/* Stat 1: Interviews Taken */}
+                      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm space-y-2">
+                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-bold">
+                          <BarChart2 className="h-4 w-4 text-indigo-500" />
+                          <span>Interviews Taken</span>
+                        </div>
+                        <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                          {recentSessions.length > 0 ? recentSessions.length : 24}
+                        </div>
+                        <p className="text-[11px] font-bold text-emerald-500">
+                          +12% from last week
+                        </p>
+                      </div>
 
-                            <button
-                              onClick={() => setActiveTab(feat.id)}
-                              className={`w-full py-3 rounded-2xl font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 ${feat.btnColor}`}
-                            >
-                              <span>{feat.btnText}</span>
-                              <ArrowRight className="h-4 w-4" />
-                            </button>
-                          </div>
-                        );
-                      })}
+                      {/* Stat 2: Problems Solved */}
+                      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm space-y-2">
+                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-bold">
+                          <CheckSquare className="h-4 w-4 text-blue-500" />
+                          <span>Problems Solved</span>
+                        </div>
+                        <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                          128
+                        </div>
+                        <p className="text-[11px] font-bold text-emerald-500">
+                          +18% from last week
+                        </p>
+                      </div>
+
+                      {/* Stat 3: Accuracy */}
+                      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm space-y-2">
+                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-bold">
+                          <Target className="h-4 w-4 text-purple-500" />
+                          <span>Accuracy</span>
+                        </div>
+                        <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                          78%
+                        </div>
+                        <p className="text-[11px] font-bold text-emerald-500">
+                          +9% from last week
+                        </p>
+                      </div>
+
+                      {/* Stat 4: Contests */}
+                      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm space-y-2">
+                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-bold">
+                          <Trophy className="h-4 w-4 text-amber-500" />
+                          <span>Contests</span>
+                        </div>
+                        <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                          6
+                        </div>
+                        <p className="text-[11px] font-bold text-emerald-500">
+                          +2 from last week
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Platform Toolkit */}
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-amber-400" /> Platform Toolkit
+                  {/* Recommended for You Section */}
+                  <div className="space-y-3.5">
+                    <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                      Recommended for You
                     </h3>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-                      {QUICK_FEATURES.map((item, idx) => {
-                        const Icon = item.icon;
-                        return (
-                          <div key={idx} className={`p-4 rounded-2xl border space-y-2 ${innerBg}`}>
-                            <div className={`p-2.5 rounded-xl border w-fit ${item.color}`}>
-                              <Icon className="h-5 w-5" />
-                            </div>
-                            <h5 className="font-extrabold text-xs text-slate-100">{item.title}</h5>
-                            <p className="text-[11px] text-slate-400 leading-relaxed">{item.desc}</p>
-                          </div>
-                        );
-                      })}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {/* Topic 1: System Design */}
+                      <div
+                        onClick={() => {
+                          setStepData(prev => ({ ...prev, topic: "system" }));
+                          openStepWizard();
+                        }}
+                        className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center gap-3.5 group"
+                      >
+                        <div className="shrink-0 p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/30">
+                          <SystemDesignDiagramIcon />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white group-hover:text-indigo-500 transition-colors">
+                            System Design
+                          </h4>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            Build scalable systems.
+                          </p>
+                          <span className="inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                            12 Modules
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Topic 2: Dynamic Programming */}
+                      <div
+                        onClick={() => setActiveTab("problems")}
+                        className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center gap-3.5 group"
+                      >
+                        <div className="shrink-0 p-2 rounded-xl bg-slate-900 dark:bg-slate-950">
+                          <DynamicProgrammingIcon />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white group-hover:text-indigo-500 transition-colors">
+                            Dynamic Programming
+                          </h4>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            Optimize recursive solutions.
+                          </p>
+                          <span className="inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                            18 Problems
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Topic 3: Behavioral Interview */}
+                      <div
+                        onClick={() => {
+                          setStepData(prev => ({ ...prev, topic: "hr" }));
+                          openStepWizard();
+                        }}
+                        className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center gap-3.5 group"
+                      >
+                        <div className="shrink-0 p-2 rounded-xl bg-blue-50 dark:bg-blue-950/30">
+                          <BehavioralInterviewIcon />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white group-hover:text-indigo-500 transition-colors">
+                            Behavioral Interview
+                          </h4>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            Excel at personal stories.
+                          </p>
+                          <span className="inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                            10 Questions
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Topic 4: Explore All Topics */}
+                      <div
+                        onClick={() => setActiveTab("guidance")}
+                        className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0E1A2C] border border-slate-200 dark:border-white/10 shadow-sm hover:shadow-md hover:border-indigo-400/50 cursor-pointer transition-all flex items-center justify-center text-center group min-h-[76px]"
+                      >
+                        <span className="text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-indigo-500 transition-colors">
+                          Explore All Topics
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1109,8 +1581,9 @@ export default function CandidateDashboard() {
                                 </div>
 
                                 {/* Match Score Badge */}
-                                <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300">
-                                  {inv.matchScore || 95}% Match
+                                <span className="text-[11px] font-black px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 flex items-center gap-1 shadow-sm">
+                                  <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                                  {inv.matchScore || 90}% Skill Match
                                 </span>
                               </div>
 
@@ -1129,6 +1602,22 @@ export default function CandidateDashboard() {
                                   )}
                                 </div>
                               </div>
+
+                              {/* Matched Skills with Candidate */}
+                              {Array.isArray(inv.matchedSkills) && inv.matchedSkills.length > 0 && (
+                                <div className="space-y-1 p-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+                                  <span className="text-[10px] uppercase font-extrabold text-emerald-400 flex items-center gap-1">
+                                    <CheckCircle2 className="h-3 w-3 text-emerald-400" /> Matches Your Skills ({inv.matchedSkills.length})
+                                  </span>
+                                  <div className="flex flex-wrap gap-1 pt-0.5">
+                                    {inv.matchedSkills.map((ms, idx) => (
+                                      <span key={idx} className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold">
+                                        {ms}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
 
                               {/* Availability */}
                               <div className="space-y-1">
@@ -1236,15 +1725,56 @@ export default function CandidateDashboard() {
                               </div>
 
                             <div className="flex items-center gap-2 self-start sm:self-auto">
-                              {req.meetingLink && req.status === "accepted" && (
-                                <a
-                                  href={req.meetingLink}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-emerald-500/10"
+                              {req.status === "accepted" && (() => {
+                                const linkState = getMeetingLinkStatus(req);
+                                if (linkState.state === "UPCOMING") {
+                                  return (
+                                    <div className="px-3.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5">
+                                      <Lock className="h-3.5 w-3.5 text-amber-400" />
+                                      <span>{linkState.label}</span>
+                                    </div>
+                                  );
+                                }
+                                if (linkState.state === "ACTIVE" && req.meetingLink) {
+                                  return (
+                                    <a
+                                      href={req.meetingLink}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black text-xs shadow-md hover:brightness-110 flex items-center gap-1.5 transition-all animate-pulse"
+                                    >
+                                      <Video className="h-3.5 w-3.5 text-black fill-current" /> Join Google Meet Call
+                                    </a>
+                                  );
+                                }
+                                if (linkState.state === "EXPIRED_UNCOMPLETED") {
+                                  if (req.newLinkRequested && req.newLinkStatus === "pending") {
+                                    return (
+                                      <div className="px-3.5 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold flex items-center gap-1.5">
+                                        <Clock className="h-3.5 w-3.5 animate-spin text-cyan-400" />
+                                        <span>Renewal Requested</span>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <button
+                                      onClick={() => openRequestLinkModal(req)}
+                                      className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black text-xs font-black hover:brightness-110 flex items-center gap-1.5 shadow-sm"
+                                    >
+                                      <RotateCcw className="h-3.5 w-3.5" /> Request New Link
+                                    </button>
+                                  );
+                                }
+                                return null;
+                              })()}
+
+                              {req.status === "completed" && (
+                                <button
+                                  onClick={() => handleOpenFeedbackView(req.requestId)}
+                                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-teal-400 to-emerald-400 text-black font-extrabold text-xs shadow-md hover:brightness-110 flex items-center gap-1.5 transition-all"
                                 >
-                                  <Video className="h-3.5 w-3.5 text-emerald-400" /> Join Google Meet Call
-                                </a>
+                                  <Star className="h-3.5 w-3.5 fill-current" /> View Evaluation & Ratings
+                                </button>
                               )}
                             </div>
                           </div>
@@ -1289,7 +1819,7 @@ export default function CandidateDashboard() {
                     </div>
 
                     {/* Quick Metric Cards */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 border-t border-white/5 mt-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-6 border-t border-white/5 mt-6">
                       <div className={`p-3.5 rounded-2xl border ${innerBg}`}>
                         <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Total Requests</span>
                         <p className="text-xl font-black text-slate-100">{myRequests.length}</p>
@@ -1301,6 +1831,15 @@ export default function CandidateDashboard() {
                         </span>
                         <p className="text-xl font-black text-emerald-300">
                           {myRequests.filter((r) => r.status === "accepted").length}
+                        </p>
+                      </div>
+
+                      <div className={`p-3.5 rounded-2xl border bg-purple-500/5 border-purple-500/20`}>
+                        <span className="text-[10px] font-bold uppercase text-purple-400 block mb-1 flex items-center gap-1">
+                          <Star className="h-3 w-3 fill-current" /> Completed & Rated
+                        </span>
+                        <p className="text-xl font-black text-purple-300">
+                          {myRequests.filter((r) => r.status === "completed").length}
                         </p>
                       </div>
 
@@ -1331,6 +1870,7 @@ export default function CandidateDashboard() {
                       {[
                         { id: "all", label: "All Requests", count: myRequests.length },
                         { id: "accepted", label: "Accepted (Active)", count: myRequests.filter((r) => r.status === "accepted").length },
+                        { id: "completed", label: "Completed", count: myRequests.filter((r) => r.status === "completed").length },
                         { id: "pending", label: "Pending", count: myRequests.filter((r) => r.status === "pending").length },
                         { id: "rejected", label: "Rejected", count: myRequests.filter((r) => r.status === "rejected").length },
                       ].map((tab) => (
@@ -1588,16 +2128,77 @@ export default function CandidateDashboard() {
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2.5">
-                                  {/* Google Meet Button - Active when Accepted */}
-                                  {isAccepted && req.meetingLink && (
-                                    <a
-                                      href={req.meetingLink}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black text-xs shadow-lg hover:brightness-110 transition-all flex items-center gap-2"
+                                  {/* Google Meet Button with Time-Gating & Renewal Request logic */}
+                                  {isAccepted && (() => {
+                                    const linkState = getMeetingLinkStatus(req);
+                                    if (linkState.state === "UPCOMING") {
+                                      return (
+                                        <div className="px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                                          <Lock className="h-3.5 w-3.5 text-amber-400" />
+                                          <span>{linkState.label}</span>
+                                        </div>
+                                      );
+                                    }
+                                    if (linkState.state === "ACTIVE" && req.meetingLink) {
+                                      return (
+                                        <a
+                                          href={req.meetingLink}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-black text-xs shadow-lg hover:brightness-110 transition-all flex items-center gap-2 animate-pulse"
+                                        >
+                                          <Video className="h-4 w-4 text-black fill-current" /> Join Google Meet Call
+                                        </a>
+                                      );
+                                    }
+                                    if (linkState.state === "EXPIRED_UNCOMPLETED") {
+                                      if (req.newLinkRequested && req.newLinkStatus === "pending") {
+                                        return (
+                                          <div className="px-4 py-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold flex items-center gap-2 shadow-sm">
+                                            <Clock className="h-4 w-4 animate-spin text-cyan-400" />
+                                            <span>Link Renewal Requested • Waiting for Interviewer Approval</span>
+                                          </div>
+                                        );
+                                      }
+                                      if (req.newLinkStatus === "denied") {
+                                        return (
+                                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                            <span className="text-xs text-red-400 font-bold flex items-center gap-1">
+                                              <XCircle className="h-4 w-4" /> Request Denied: {req.newLinkDenialReason || "Interviewer unavailable"}
+                                            </span>
+                                            <button
+                                              onClick={() => openRequestLinkModal(req)}
+                                              className="px-3.5 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 text-xs font-black flex items-center gap-1.5 transition-all"
+                                            >
+                                              <RotateCcw className="h-3.5 w-3.5" /> Request Again
+                                            </button>
+                                          </div>
+                                        );
+                                      }
+                                      return (
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                          <span className="text-xs text-amber-400 font-bold flex items-center gap-1">
+                                            <AlertTriangle className="h-4 w-4 text-amber-400" /> Slot Expired • Not Marked Complete
+                                          </span>
+                                          <button
+                                            onClick={() => openRequestLinkModal(req)}
+                                            className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black text-xs font-black hover:brightness-110 shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all"
+                                          >
+                                    <RotateCcw className="h-3.5 w-3.5" /> Request New Meeting Link
+                                          </button>
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+
+                                  {isCompleted && (
+                                    <button
+                                      onClick={() => handleOpenFeedbackView(req.requestId)}
+                                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 text-[#0B151E] font-black text-xs shadow-md hover:brightness-110 flex items-center gap-1.5 transition-all"
                                     >
-                                      <Video className="h-4 w-4 text-black fill-current" /> Join Google Meet Call
-                                    </a>
+                                      <Star className="h-3.5 w-3.5 fill-current" /> View Interview Evaluation & Ratings
+                                    </button>
                                   )}
                                 </div>
                               </div>
@@ -1961,14 +2562,25 @@ export default function CandidateDashboard() {
 
                   {/* Monaco Editor + Terminal Runner */}
                   <CodeEditorWithRunner
+                    isPlayground={true}
                     initialLanguage="javascript"
                     roomCode={activeSession?.roomCode || null}
                   />
                 </div>
               )}
 
-              {/* ══════════════ TAB 7: DSA & PROBLEM SOLVING ══════════════ */}
-              {activeTab === "problems" && <ProblemSolvingTab />}
+              {/* Tab: Companies Connected With You */}
+              {(activeTab === "connections" || activeTab === "jobs") && (
+                <CandidateJobsTab
+                  user={user}
+                  profile={profile}
+                  isDark={isDark}
+                  onNavigateTab={setActiveTab}
+                />
+              )}
+
+              {/* ══════════════ TAB: DSA & FLOWCODE WORKSPACE ══════════════ */}
+              {(activeTab === "problems" || activeTab === "dsaprofile") && <ProblemSolvingTab user={user} />}
 
               {/* ══════════════ TAB 8: REPORT BUG / ISSUES ══════════════ */}
               {activeTab === "bugs" && <ReportBugTab user={user} isAdmin={false} />}
@@ -2269,6 +2881,267 @@ export default function CandidateDashboard() {
                   Or Broadcast to Open Matching Pool Instead
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════ REQUEST NEW GOOGLE MEET LINK MODAL ══════════════════ */}
+      {requestLinkModalOpen && requestLinkTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className={`w-full max-w-lg rounded-3xl border shadow-2xl overflow-hidden ${
+            isDark ? "border-amber-500/30 bg-[#080E18] text-white" : "border-slate-200 bg-white text-slate-900"
+          }`}>
+            <div className={`flex items-center justify-between p-6 border-b ${isDark ? "border-white/10 bg-white/2" : "border-slate-100 bg-slate-50"}`}>
+              <div className="space-y-1">
+                <h3 className="text-base font-extrabold flex items-center gap-2 text-amber-400">
+                  <RotateCcw className="h-5 w-5" /> Request New Google Meet Link
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Role: <strong className="text-slate-200">{requestLinkTarget.roleRequirement}</strong> • Slot: <span className="font-mono text-cyan-300">{requestLinkTarget.scheduledTime}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setRequestLinkModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRequestNewLink} className="p-6 space-y-4 text-xs">
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" /> Time Window Expired / Session Incomplete
+                </p>
+                <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                  Your reserved time slot window has completed and the interviewer has not marked this session as completed yet. You can ask the interviewer for a new link or extension.
+                </p>
+              </div>
+
+              <div>
+                <label className="block mb-1.5 font-bold text-slate-300">
+                  Reason for New Link Request <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="e.g. The meeting was delayed / we could not join during the original slot, requesting a new active link to continue."
+                  value={requestLinkReason}
+                  onChange={(e) => setRequestLinkReason(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRequestLinkModalOpen(false)}
+                  className={`flex-1 rounded-xl border py-2.5 font-bold ${
+                    isDark ? "border-white/10 hover:bg-white/5 text-slate-300" : "border-slate-200 hover:bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={requestLinkLoading}
+                  className="flex-1 rounded-xl py-2.5 font-black bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-lg hover:brightness-110 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {requestLinkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {requestLinkLoading ? "Submitting..." : "Send Request to Interviewer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════ CANDIDATE INTERVIEW FEEDBACK & RATINGS MODAL ══════════════════ */}
+      {candidateFeedbackModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className={`w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl border shadow-2xl overflow-hidden ${
+            isDark ? "border-cyan-500/30 bg-[#080E18] text-white" : "border-slate-200 bg-white text-slate-900"
+          }`}>
+            {/* Modal Header */}
+            <div className={`flex items-start justify-between p-6 border-b shrink-0 ${
+              isDark ? "border-white/10 bg-white/5" : "border-slate-100 bg-slate-50"
+            }`}>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" /> Technical Evaluation Completed
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                    candidateFeedbackModal.recommendation === "Strong Hire"
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                      : candidateFeedbackModal.recommendation === "Hire"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                      : candidateFeedbackModal.recommendation === "Consider"
+                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                      : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                  }`}>
+                    Recommendation: {candidateFeedbackModal.recommendation || "Hire"}
+                  </span>
+                </div>
+                <h3 className="text-lg font-black text-slate-100 flex items-center gap-2">
+                  <Star className="h-5 w-5 text-amber-400 fill-current" />
+                  Interview Feedback &amp; Skill Markings
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Evaluated by: <strong className="text-cyan-400">{
+                    candidateFeedbackModal.interviewerUser?.firstName
+                      ? `${candidateFeedbackModal.interviewerUser.firstName} ${candidateFeedbackModal.interviewerUser.lastName || ""}`.trim()
+                      : candidateFeedbackModal.interviewerUser?.username || "Technical Interviewer"
+                  }</strong>
+                </p>
+              </div>
+
+              <button
+                onClick={() => setCandidateFeedbackModal(null)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-5 text-xs">
+              {/* Overall Score Highlight */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-transparent border border-emerald-500/30 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Overall Interview Rating</span>
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    <span className="text-3xl font-black text-emerald-400">
+                      {candidateFeedbackModal.overallRating}
+                    </span>
+                    <span className="text-sm font-bold text-slate-500">/ 10</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  {[...Array(10)].map((_, i) => (
+                    <Star
+                      key={i}
+                      className={`h-4 w-4 ${
+                        i < candidateFeedbackModal.overallRating
+                          ? "text-amber-400 fill-current"
+                          : "text-slate-600"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Verified Skills Rating Breakdown */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-extrabold text-sm text-slate-100 flex items-center gap-2">
+                    <Code2 className="h-4 w-4 text-cyan-400" /> Tested Skills &amp; Markings (Out of 10)
+                  </h4>
+                  <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" /> Live Verified
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {Array.isArray(candidateFeedbackModal.skillRatings) && candidateFeedbackModal.skillRatings.length > 0 ? (
+                    candidateFeedbackModal.skillRatings.map((sr, idx) => {
+                      const rating = Number(sr.rating) || 0;
+                      const pct = Math.round((rating / 10) * 100);
+                      const barColor =
+                        rating >= 8
+                          ? "bg-emerald-400"
+                          : rating >= 6
+                          ? "bg-cyan-400"
+                          : rating >= 4
+                          ? "bg-amber-400"
+                          : "bg-rose-400";
+
+                      return (
+                        <div key={idx} className={`p-3.5 rounded-2xl border ${innerBg} space-y-2`}>
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-slate-100">{sr.skill}</span>
+                            <span className="font-black text-xs font-mono text-cyan-300">
+                              {rating} / 10
+                            </span>
+                          </div>
+
+                          {/* Progress bar */}
+                          <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${barColor} transition-all duration-500`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+
+                          {sr.notes && (
+                            <p className="text-[11px] text-slate-400 italic pt-0.5">
+                              "{sr.notes}"
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-slate-500 italic">No specific skill breakdown recorded.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Strengths & Areas for Improvement */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Key Strengths
+                  </span>
+                  <p className="text-slate-200 text-xs leading-relaxed whitespace-pre-wrap">
+                    {candidateFeedbackModal.strengths || "Strong fundamentals and communication demonstrated during session."}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-amber-400 flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5" /> Areas for Growth
+                  </span>
+                  <p className="text-slate-200 text-xs leading-relaxed whitespace-pre-wrap">
+                    {candidateFeedbackModal.areasForImprovement || "Continue practicing edge case analysis and code modularity."}
+                  </p>
+                </div>
+              </div>
+
+              {/* General Feedback Notes */}
+              {candidateFeedbackModal.generalNotes && (
+                <div className={`p-4 rounded-2xl border ${innerBg} space-y-1`}>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                    Interviewer Remarks &amp; Mentorship Advice:
+                  </span>
+                  <p className="text-slate-300 text-xs leading-relaxed whitespace-pre-wrap">
+                    {candidateFeedbackModal.generalNotes}
+                  </p>
+                </div>
+              )}
+
+              {/* How this helps candidate */}
+              <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-start gap-2.5 text-cyan-200">
+                <Sparkles className="h-4 w-4 shrink-0 text-cyan-400 mt-0.5" />
+                <p className="text-[11px] leading-relaxed">
+                  <strong>Career Boost:</strong> These verified skill marks out of 10 are now automatically linked to your candidate profile and boost your match ranking when companies post jobs and search for matching talent!
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className={`p-4 border-t flex justify-end shrink-0 ${
+              isDark ? "border-white/10 bg-white/2" : "border-slate-100 bg-slate-50"
+            }`}>
+              <button
+                type="button"
+                onClick={() => setCandidateFeedbackModal(null)}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-teal-400 to-cyan-400 text-black font-black text-xs hover:brightness-110 shadow-md"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>

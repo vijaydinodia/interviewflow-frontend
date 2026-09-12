@@ -689,7 +689,7 @@ export default function RegisterPage() {
                   <div className="text-xs">
                     <p className="font-bold text-cyan-300">Auto-Generated UUID Password Activated</p>
                     <p className="text-slate-300 mt-0.5">
-                      Your 8-character secure password will be generated and dispatched to <strong>{formData.email}</strong> via Brevo SMTP.
+                      Your 8-character secure password will be generated and dispatched to <strong>{formData.email}</strong> via email.
                     </p>
                   </div>
                 </div>

@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Sun, Moon, User, Key, LogOut, ChevronDown, Camera, X, CheckCircle2, AlertCircle, Edit3, ShieldCheck, Mail, Tag, CheckCircle, Sparkles
+  Sun, Moon, User, Key, LogOut, ChevronDown, Camera, X, CheckCircle2, AlertCircle, Edit3, ShieldCheck, Mail, Tag, CheckCircle, Sparkles, Lock
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
 import { api } from "@/api";
+import EmailUpdateModal from "@/components/EmailUpdateModal/page";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -21,6 +22,7 @@ export default function DashboardHeader({ title, roleBadge }) {
   const [viewProfileOpen, setViewProfileOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
 
   const [profileForm, setProfileForm] = useState({ fullName: "", email: "", avatarUrl: "" });
   const [profileSuccess, setProfileSuccess] = useState("");
@@ -433,16 +435,33 @@ export default function DashboardHeader({ title, roleBadge }) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold mb-1">Email Address</label>
-                <input
-                  type="email"
-                  value={profileForm.email}
-                  onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs focus:outline-none focus:ring-2 ${
-                    isDark ? "border-white/10 bg-[#080E18] text-white focus:border-cyan-400" : "border-slate-200 bg-slate-50 text-slate-900 focus:border-indigo-500"
-                  }`}
-                  required
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold">Email Address</label>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
+                    <Lock className="h-3 w-3" /> Locked for Security
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={profileForm.email}
+                    disabled
+                    className={`flex-1 rounded-xl border px-3.5 py-2.5 text-xs opacity-75 cursor-not-allowed ${
+                      isDark ? "border-white/10 bg-[#060D16] text-slate-300" : "border-slate-200 bg-slate-100 text-slate-600"
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setEmailModalOpen(true)}
+                    className="px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-[11px] font-extrabold shrink-0 shadow flex items-center gap-1.5 transition-all"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    <span>Change Email</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Email updates require 2-step OTP verification on both current and new emails.
+                </p>
               </div>
 
               <div>
@@ -570,6 +589,20 @@ export default function DashboardHeader({ title, roleBadge }) {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Two-Step Email Change Modal */}
+      {user && (
+        <EmailUpdateModal
+          isOpen={emailModalOpen}
+          onClose={() => setEmailModalOpen(false)}
+          currentEmail={user.email}
+          onEmailUpdated={(newEmail) => {
+            const updated = { ...user, email: newEmail };
+            setUser(updated);
+            setProfileForm((prev) => ({ ...prev, email: newEmail }));
+          }}
+        />
       )}
     </>
   );
