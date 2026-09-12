@@ -19,6 +19,21 @@ const api = axios.create({
   },
 });
 
+// Request interceptor to attach Authorization token automatically
+api.interceptors.request.use(
+  (config) => {
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("interviewflow_token");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 export { API_URL, api };
 export default api;
+
 
