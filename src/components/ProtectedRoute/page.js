@@ -13,9 +13,9 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   const getDashboardUrl = (role) => {
-    const r = (role || "").toLowerCase();
+    const r = (role || "").toLowerCase().replace(/[\s_-]/g, "");
     if (r === "superadmin") return "/dashboard/super-admin";
-    if (r === "admin" || r === "company") return "/dashboard/admin";
+    if (r === "admin" || r === "company" || r === "companyadmin") return "/dashboard/admin";
     if (r === "interviewer") return "/dashboard/interviewer";
     return "/dashboard/candidate";
   };
@@ -33,11 +33,11 @@ export default function ProtectedRoute({ children, allowedRoles }) {
       }
 
       const session = JSON.parse(sessionStr);
-      const userRole = (session?.role || "candidate").toLowerCase();
+      const userRole = (session?.role || "candidate").toLowerCase().replace(/[\s_-]/g, "");
 
       // 2. Check if specific roles are required
       if (allowedRoles && allowedRoles.length > 0) {
-        const normalizedAllowed = allowedRoles.map((r) => r.toLowerCase());
+        const normalizedAllowed = allowedRoles.map((r) => r.toLowerCase().replace(/[\s_-]/g, ""));
         const hasAccess = normalizedAllowed.includes(userRole);
 
         if (!hasAccess) {
@@ -45,7 +45,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
           setIsLoading(false);
           // Redirect user to their own dashboard based on their role
           const targetUrl = getDashboardUrl(userRole);
-          router.replace(targetUrl);
+          window.location.href = targetUrl;
           return;
         }
       }

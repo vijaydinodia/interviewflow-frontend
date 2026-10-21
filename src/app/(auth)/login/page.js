@@ -51,9 +51,9 @@ export default function LoginPage() {
   };
 
   const getDashboardUrl = (role) => {
-    const r = (role || "").toLowerCase();
+    const r = (role || "").toLowerCase().replace(/[\s_-]/g, "");
     if (r === "superadmin") return "/dashboard/super-admin";
-    if (r === "admin" || r === "company") return "/dashboard/admin";
+    if (r === "admin" || r === "company" || r === "companyadmin") return "/dashboard/admin";
     if (r === "interviewer") return "/dashboard/interviewer";
     return "/dashboard/candidate";
   };
@@ -62,11 +62,14 @@ export default function LoginPage() {
     e.preventDefault();
     setErrors({});
 
+    const cleanIdentifier = (formData.email || "").trim();
+    const cleanPassword = formData.password || "";
+
     const newError = {};
-    if (formData.email === "") {
-      newError.email = "Email is required.";
+    if (!cleanIdentifier) {
+      newError.email = "Email or username is required.";
     }
-    if (formData.password === "") {
+    if (!cleanPassword) {
       newError.password = "Password is required.";
     }
 
@@ -79,8 +82,8 @@ export default function LoginPage() {
 
     try {
       const response = await api.post("/user/login", {
-        email: formData.email,
-        password: formData.password,
+        email: cleanIdentifier,
+        password: cleanPassword,
       });
 
       const data = response.data;
@@ -92,19 +95,26 @@ export default function LoginPage() {
 
         const userRole = data.user?.role || "candidate";
         const sessionUser = {
+          ...data.user,
+          userId: data.user?.userId || data.user?.id,
+          id: data.user?.userId || data.user?.id,
+          username: data.user?.username || cleanIdentifier,
+          firstName: data.user?.firstName || "",
+          lastName: data.user?.lastName || "",
           fullName: data.user?.firstName
             ? `${data.user.firstName} ${data.user.lastName || ""}`.trim()
-            : data.user?.username || formData.email,
-          email: data.user?.email || formData.email,
+            : data.user?.fullName || data.user?.username || cleanIdentifier,
+          email: data.user?.email || cleanIdentifier,
           role: userRole,
+          token: data.token,
         };
 
         localStorage.setItem("interviewflow_session", JSON.stringify(sessionUser));
         setIsLoading(false);
 
-        // Directly redirect to dashboard
+        // Directly redirect to dashboard with fresh state
         const dashboardUrl = getDashboardUrl(userRole);
-        router.push(dashboardUrl);
+        window.location.href = dashboardUrl;
         return;
       }
     } catch (err) {
@@ -124,28 +134,36 @@ export default function LoginPage() {
         } catch (e) {}
 
         const match = usersList.find(
-          (u) => u.email.toLowerCase() === formData.email.toLowerCase() && u.password === formData.password
+          (u) =>
+            (u.email?.toLowerCase() === cleanIdentifier.toLowerCase() ||
+              u.username?.toLowerCase() === cleanIdentifier.toLowerCase()) &&
+            u.password === cleanPassword
         );
 
         if (match) {
           const userRole = match.role || "candidate";
           const sessionUser = {
-            fullName: match.fullName,
-            email: match.email,
+            ...match,
+            userId: match.userId || match.id || "local-user-1",
+            fullName: match.fullName || match.username || cleanIdentifier,
+            email: match.email || cleanIdentifier,
             role: userRole,
           };
           localStorage.setItem("interviewflow_session", JSON.stringify(sessionUser));
 
-          // Directly redirect to dashboard
           const dashboardUrl = getDashboardUrl(userRole);
-          router.push(dashboardUrl);
+          window.location.href = dashboardUrl;
           return;
         }
       }
 
+      console.error("Login request error:", err);
+
       const errorMessage =
-        err.code === "ERR_NETWORK"
-          ? "Unable to connect to backend server (http://localhost:5000). Please ensure backend is running."
+        err.code === "ECONNABORTED"
+          ? "Request timed out (10s). The server at http://localhost:5000 is taking too long to respond."
+          : err.code === "ERR_NETWORK"
+          ? "Unable to connect to backend server. Please verify the backend is running at http://localhost:5000."
           : err.message || "Invalid email or password.";
       setErrors({ form: errorMessage });
       return;
@@ -191,17 +209,18 @@ export default function LoginPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4 text-left">
-        {/* Email */}
+        {/* Email or Username */}
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider mb-1.5 text-slate-300">
-            Email Address
+            Email Address or Username
           </label>
           <div className="relative">
             <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
-              type="email"
+              type="text"
               name="email"
-              placeholder="you@example.com"
+              autoComplete="username"
+              placeholder="you@example.com or username"
               value={formData.email}
               onChange={handleChange}
               className={inputCls(errors.email)}

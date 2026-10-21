@@ -13,9 +13,9 @@ export default function GuestRoute({ children }) {
   const [isGuest, setIsGuest] = useState(false);
 
   const getDashboardUrl = (role) => {
-    const r = (role || "").toLowerCase();
+    const r = (role || "").toLowerCase().replace(/[\s_-]/g, "");
     if (r === "superadmin") return "/dashboard/super-admin";
-    if (r === "admin" || r === "company") return "/dashboard/admin";
+    if (r === "admin" || r === "company" || r === "companyadmin") return "/dashboard/admin";
     if (r === "interviewer") return "/dashboard/interviewer";
     return "/dashboard/candidate";
   };
@@ -30,7 +30,7 @@ export default function GuestRoute({ children }) {
         const dashboardUrl = getDashboardUrl(userRole);
         setIsGuest(false);
         setIsLoading(false);
-        router.replace(dashboardUrl);
+        window.location.href = dashboardUrl;
         return;
       }
 

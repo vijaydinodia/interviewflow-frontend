@@ -44,8 +44,8 @@ export default function SuperAdminOverviewHome({
   const activeInterviewersCount = interviewers.length - pendingInterviewers.length;
   const openBugsCount = bugs.filter((b) => b.status === "open" || b.status === "in_progress" || b.status === "pending").length;
 
-  const cpu = monitoringData?.system?.cpu || { usagePercentage: 0, status: "HEALTHY" };
-  const memory = monitoringData?.system?.memory || { usagePercentage: 0, usedGB: "0 GB", totalGB: "0 GB" };
+  const appCpu = monitoringData?.application?.cpu || monitoringData?.process?.cpu || { percent: 0, status: "HEALTHY" };
+  const appMemory = monitoringData?.application?.memory || monitoringData?.process?.memory || { rss: 0, heapUsed: 0, heapTotal: 0, rssFormatted: "0 MB", heapUsagePercentage: 0 };
   const perf = monitoringData?.performance?.summary || { avgResponseTimeMs: 0, overallSuccessRate: "100%" };
   const health = monitoringData?.health || { status: "healthy", services: { database: "up", api: "up", filesystem: "up" } };
   const business = monitoringData?.business || {};
@@ -323,27 +323,27 @@ export default function SuperAdminOverviewHome({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* CPU Load */}
+          {/* Node.js Application CPU */}
           <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-400 flex items-center gap-1.5"><Cpu className="h-3.5 w-3.5 text-cyan-400" /> Host CPU</span>
-              <span className="text-emerald-400 font-bold text-[11px]">{cpu.status}</span>
+              <span className="text-slate-400 flex items-center gap-1.5"><Cpu className="h-3.5 w-3.5 text-cyan-400" /> App CPU</span>
+              <span className="text-emerald-400 font-bold text-[11px]">{appCpu.status || "HEALTHY"}</span>
             </div>
-            <p className="text-xl font-black text-white">{cpu.usagePercentage}%</p>
+            <p className="text-xl font-black text-white font-mono">{appCpu.percent !== undefined ? `${appCpu.percent}%` : "0%"}</p>
             <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full bg-cyan-400 rounded-full" style={{ width: `${cpu.usagePercentage}%` }} />
+              <div className="h-full bg-cyan-400 rounded-full" style={{ width: `${Math.min(100, Math.max(5, appCpu.percent || 5))}%` }} />
             </div>
           </div>
 
-          {/* RAM Allocation */}
+          {/* Node.js Application RAM (RSS) */}
           <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-400 flex items-center gap-1.5"><Server className="h-3.5 w-3.5 text-amber-400" /> RAM Memory</span>
-              <span className="text-slate-400 text-[11px]">{memory.usedGB} / {memory.totalGB}</span>
+              <span className="text-slate-400 flex items-center gap-1.5"><Server className="h-3.5 w-3.5 text-amber-400" /> App RAM</span>
+              <span className="text-slate-400 text-[11px] font-mono">Heap: {appMemory.heapUsed} MB</span>
             </div>
-            <p className="text-xl font-black text-white">{memory.usagePercentage}%</p>
+            <p className="text-xl font-black text-white font-mono">{appMemory.rss} <span className="text-xs text-slate-400 font-sans">MB (RSS)</span></p>
             <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full bg-amber-400 rounded-full" style={{ width: `${memory.usagePercentage}%` }} />
+              <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.min(100, Math.max(5, appMemory.heapUsagePercentage || 5))}%` }} />
             </div>
           </div>
 

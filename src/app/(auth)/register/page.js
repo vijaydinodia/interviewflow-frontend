@@ -190,9 +190,9 @@ export default function RegisterPage() {
   };
 
   const getDashboardUrl = (role) => {
-    const r = (role || "").toLowerCase();
+    const r = (role || "").toLowerCase().replace(/[\s_-]/g, "");
     if (r === "superadmin") return "/dashboard/super-admin";
-    if (r === "admin" || r === "company") return "/dashboard/admin";
+    if (r === "admin" || r === "company" || r === "companyadmin") return "/dashboard/admin";
     if (r === "interviewer") return "/dashboard/interviewer";
     return "/dashboard/candidate";
   };
@@ -323,18 +323,25 @@ export default function RegisterPage() {
             }
             const userRole = loginRes.data.user?.role || selectedRole;
             const sessionUser = {
-              fullName: formData.fullName,
+              ...loginRes.data.user,
+              userId: loginRes.data.user?.userId || loginRes.data.user?.id,
+              id: loginRes.data.user?.userId || loginRes.data.user?.id,
+              username: loginRes.data.user?.username || formData.email,
+              firstName: loginRes.data.user?.firstName || "",
+              lastName: loginRes.data.user?.lastName || "",
+              fullName: formData.fullName || loginRes.data.user?.fullName,
               email: formData.email,
               role: userRole,
+              token: loginRes.data.token,
             };
             localStorage.setItem("interviewflow_session", JSON.stringify(sessionUser));
 
             const dashboardUrl = getDashboardUrl(userRole);
-            router.push(dashboardUrl);
+            window.location.href = dashboardUrl;
             return;
           }
         } catch (loginErr) {
-          router.push("/login");
+          window.location.href = "/login";
           return;
         }
       }

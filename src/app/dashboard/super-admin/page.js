@@ -544,7 +544,7 @@ export default function SuperAdminDashboard() {
               {sidebarOpen && (
                 <div className="min-w-0 flex-1">
                   <p className="font-extrabold text-xs truncate text-slate-100">
-                    {user.fullName || user.username || "Super Admin"}
+                    {user?.fullName || user?.username || "Super Admin"}
                   </p>
                   <p className="text-[10px] text-amber-400 font-bold">System Super Admin</p>
                 </div>

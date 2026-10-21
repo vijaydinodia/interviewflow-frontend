@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Activity,
   Server,
@@ -33,10 +33,122 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Mail
+  Mail,
+  Box,
+  Gauge,
+  Sliders,
+  TrendingUp,
+  SlidersHorizontal,
+  Info
 } from "lucide-react";
 import { useTheme } from "@/custom_hook/UseTheme";
 import { api } from "@/api";
+
+/**
+ * Lightweight, high-performance SVG Telemetry Area & Sparkline Chart
+ */
+function TelemetrySparkChart({
+  data = [],
+  dataKey = "value",
+  color = "#38bdf8",
+  gradientId = "cyanGrad",
+  label = "Metric",
+  unit = "%",
+  height = 90,
+  minY = null,
+  maxY = null,
+  isDark = true,
+}) {
+  const points = data.map((d) => (typeof d[dataKey] === "number" ? d[dataKey] : parseFloat(d[dataKey]) || 0));
+
+  const count = points.length;
+  const current = count > 0 ? points[count - 1] : 0;
+  const computedMin = minY !== null ? minY : count > 0 ? Math.min(...points) : 0;
+  const computedMax = maxY !== null ? maxY : count > 0 ? Math.max(...points) : 100;
+  const range = computedMax - computedMin || 1;
+
+  const width = 320;
+  const chartHeight = height;
+  const padding = 10;
+
+  const svgPoints = useMemo(() => {
+    if (count < 2) return "";
+    return points
+      .map((val, idx) => {
+        const x = padding + (idx / (count - 1)) * (width - 2 * padding);
+        const normY = (val - computedMin) / range;
+        const y = chartHeight - padding - normY * (chartHeight - 2 * padding);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+  }, [points, count, computedMin, range, chartHeight]);
+
+  const areaPath = useMemo(() => {
+    if (count < 2) return "";
+    const firstX = padding;
+    const lastX = width - padding;
+    const bottomY = chartHeight - padding;
+    return `M ${firstX},${bottomY} L ${svgPoints.replace(/ /g, " L ")} L ${lastX},${bottomY} Z`;
+  }, [svgPoints, count, chartHeight]);
+
+  return (
+    <div className="space-y-1.5 w-full">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-bold text-slate-400 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+          {label}
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-slate-500">
+            Min: <b className="text-slate-300">{computedMin.toFixed(1)}</b> / Max: <b className="text-slate-300">{computedMax.toFixed(1)}</b>
+          </span>
+          <span className="font-mono font-extrabold text-white text-xs px-2 py-0.5 rounded-md" style={{ backgroundColor: `${color}20`, color: color }}>
+            {current.toFixed(1)} {unit}
+          </span>
+        </div>
+      </div>
+
+      <div className="w-full relative overflow-hidden rounded-xl bg-black/20 border border-white/5 p-1">
+        <svg viewBox={`0 0 ${width} ${chartHeight}`} className="w-full h-auto overflow-visible" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity="0.45" />
+              <stop offset="100%" stopColor={color} stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+
+          {/* Gridlines */}
+          <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke={isDark ? "#334155" : "#e2e8f0"} strokeWidth="0.5" strokeDasharray="2,2" />
+          <line x1={padding} y1={chartHeight / 2} x2={width - padding} y2={chartHeight / 2} stroke={isDark ? "#334155" : "#e2e8f0"} strokeWidth="0.5" strokeDasharray="2,2" />
+          <line x1={padding} y1={chartHeight - padding} x2={width - padding} y2={chartHeight - padding} stroke={isDark ? "#334155" : "#e2e8f0"} strokeWidth="0.5" strokeDasharray="2,2" />
+
+          {/* Area Fill & Line */}
+          {count >= 2 ? (
+            <>
+              <path d={areaPath} fill={`url(#${gradientId})`} />
+              <polyline fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={svgPoints} />
+              {/* Current Point Pulse */}
+              {points.length > 0 && (
+                <circle
+                  cx={width - padding}
+                  cy={chartHeight - padding - ((current - computedMin) / range) * (chartHeight - 2 * padding)}
+                  r="3.5"
+                  fill={color}
+                  stroke="#ffffff"
+                  strokeWidth="1.5"
+                />
+              )}
+            </>
+          ) : (
+            <text x={width / 2} y={chartHeight / 2 + 4} fill="#64748b" fontSize="10" textAnchor="middle" fontFamily="sans-serif">
+              Awaiting telemetry samples...
+            </text>
+          )}
+        </svg>
+      </div>
+    </div>
+  );
+}
 
 export default function SystemMonitoringTab({ user = null }) {
   const { isDark } = useTheme();
@@ -45,10 +157,12 @@ export default function SystemMonitoringTab({ user = null }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastChecked, setLastChecked] = useState(new Date());
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [pollInterval, setPollInterval] = useState(6000); // 6 seconds
+  const [pollInterval, setPollInterval] = useState(2000); // 2s default for real-time monitoring
 
   // Master Dashboard Data State
   const [data, setData] = useState({
+    application: null,
+    host: null,
     system: null,
     process: null,
     disk: null,
@@ -57,6 +171,9 @@ export default function SystemMonitoringTab({ user = null }) {
     alerts: null,
     business: null,
   });
+
+  // Rolling Ring-buffer Time Series History for Charts (fixed at max 40 points)
+  const [telemetryHistory, setTelemetryHistory] = useState([]);
 
   // Logs Explorer State
   const [logsList, setLogsList] = useState([]);
@@ -75,7 +192,38 @@ export default function SystemMonitoringTab({ user = null }) {
     try {
       const res = await api.get("/monitoring/dashboard");
       if (res.data && res.data.success) {
-        setData(res.data);
+        const payload = res.data;
+        setData(payload);
+
+        // Record time-series point
+        const app = payload.application || payload.process || {};
+        const appCpu = typeof app.cpu?.percent === "number" ? app.cpu.percent : parseFloat(app.cpu?.percent) || 0;
+        const appRss = typeof app.memory?.rss === "number" ? app.memory.rss : parseFloat(app.memory?.rss) || 0;
+        const heapUsed = typeof app.memory?.heapUsed === "number" ? app.memory.heapUsed : parseFloat(app.memory?.heapUsed) || 0;
+        const heapTotal = typeof app.memory?.heapTotal === "number" ? app.memory.heapTotal : parseFloat(app.memory?.heapTotal) || 0;
+        const eventLoopMean = typeof app.eventLoop?.mean === "number" ? app.eventLoop.mean : parseFloat(app.eventLoop?.mean) || 0;
+        const eventLoopP95 = typeof app.eventLoop?.p95 === "number" ? app.eventLoop.p95 : parseFloat(app.eventLoop?.p95) || 0;
+        const apiLatency = typeof payload.performance?.summary?.avgResponseTimeMs === "number" ? payload.performance.summary.avgResponseTimeMs : 0;
+
+        const timeLabel = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+        setTelemetryHistory((prev) => {
+          const next = [
+            ...prev,
+            {
+              time: timeLabel,
+              cpu: appCpu,
+              rss: appRss,
+              heapUsed,
+              heapTotal,
+              eventLoopMean,
+              eventLoopP95,
+              apiLatency,
+            },
+          ];
+          if (next.length > 40) return next.slice(next.length - 40);
+          return next;
+        });
       }
       setLastChecked(new Date());
     } catch (err) {
@@ -150,10 +298,22 @@ export default function SystemMonitoringTab({ user = null }) {
     ? "bg-gradient-to-b from-[#0F172A]/90 to-[#0B1220]/90 border-white/10"
     : "bg-white border-slate-200 shadow-sm";
 
-  const cpu = data.system?.cpu || { usagePercentage: 0, status: "healthy", cores: 1, model: "Virtual CPU" };
-  const memory = data.system?.memory || { usagePercentage: 0, status: "healthy", usedGB: "0 GB", totalGB: "0 GB" };
-  const processInfo = data.process?.process || { pid: "-", nodeVersion: "-", uptimeFormatted: "-" };
-  const processMem = data.process?.memory || { heapUsed: "0 MB", heapTotal: "0 MB", rss: "0 MB" };
+  // --- Normalized Telemetry Extractor ---
+  const appData = data.application || data.process || {};
+  const hostData = data.host || data.system || {};
+
+  // Application Metrics (Node.js Process Level)
+  const appCpu = appData.cpu || { percent: 0, coresNormalizedPercent: 0, status: "healthy", cores: 1 };
+  const appMem = appData.memory || { rss: 0, heapUsed: 0, heapTotal: 0, external: 0, arrayBuffers: 0, unit: "MB", rssFormatted: "0 MB", heapUsedFormatted: "0 MB", heapTotalFormatted: "0 MB", heapUsagePercentage: 0, status: "healthy" };
+  const processInfo = appData.process || { pid: "-", nodeVersion: "-", uptimeFormatted: "-", platform: "-", architecture: "-", activeHandles: 0, activeRequests: 0 };
+  const eventLoop = appData.eventLoop || { available: true, mean: 0, min: 0, max: 0, p95: 0, p99: 0, unit: "ms", status: "healthy" };
+
+  // Host/Container Metrics (Render Container Environment)
+  const hostCpu = hostData.cpu || { usagePercentage: 0, cores: 1, model: "Render Virtual CPU", status: "healthy" };
+  const hostMem = hostData.memory || { totalGB: "0 GB", usedGB: "0 GB", freeGB: "0 GB", usagePercentage: 0, status: "healthy" };
+  const hostLoad = Array.isArray(hostData.load) ? hostData.load : [0, 0, 0];
+  const hostSystem = hostData.system || { platform: "-", architecture: "-", hostname: "-", uptimeFormatted: "-" };
+
   const perf = data.performance?.summary || { totalRequests: 0, avgResponseTimeMs: 0, overallSuccessRate: "100%" };
   const alertsList = data.alerts?.alerts || [];
   const business = data.business || {};
@@ -170,24 +330,42 @@ export default function SystemMonitoringTab({ user = null }) {
       >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <div className="p-2 rounded-xl bg-amber-400/20 text-amber-400 border border-amber-400/30">
                 <Activity className="h-5 w-5 animate-pulse text-amber-400" />
               </div>
               <h2 className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-2 flex-wrap">
-                System Observability &amp; Platform Monitoring
+                Application &amp; System Observability
                 <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  {data.health?.status === "healthy" ? "All Systems Operational" : "System Degraded"}
+                  {data.health?.status === "healthy" ? "Application Active" : "System Degraded"}
                 </span>
               </h2>
             </div>
             <p className="text-xs text-slate-400 max-w-2xl">
-              Real-time telemetry, Node.js process health, Winston structured logging, MySQL connection diagnostics, and InterviewFlow business metrics.
+              Node.js process CPU (<code className="text-cyan-400 font-mono">process.cpuUsage</code>), V8 Heap memory, event loop latency (<code className="text-amber-400 font-mono">monitorEventLoopDelay</code>), MySQL database diagnostics, and Winston logs.
             </p>
           </div>
 
+          {/* Controls: Interval rate, pause toggle, manual refresh */}
           <div className="flex items-center gap-2.5 self-start md:self-auto flex-wrap">
+            <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1 text-xs">
+              <span className="text-[10px] text-slate-400 font-bold px-1.5">Sync:</span>
+              {[1000, 2000, 5000].map((rate) => (
+                <button
+                  key={rate}
+                  onClick={() => { setPollInterval(rate); setAutoRefresh(true); }}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
+                    pollInterval === rate && autoRefresh
+                      ? "bg-amber-400 text-black font-black"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {rate / 1000}s
+                </button>
+              ))}
+            </div>
+
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
               className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition-all ${
@@ -199,7 +377,7 @@ export default function SystemMonitoringTab({ user = null }) {
               }`}
             >
               <Radio className={`h-3.5 w-3.5 ${autoRefresh ? "animate-pulse text-emerald-400" : ""}`} />
-              Auto-sync: {autoRefresh ? "6s" : "PAUSED"}
+              {autoRefresh ? "Live Sync" : "PAUSED"}
             </button>
 
             <button
@@ -217,20 +395,27 @@ export default function SystemMonitoringTab({ user = null }) {
           </div>
         </div>
 
+        {/* Telemetry Status Bar */}
         <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400 flex-wrap gap-2">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3 text-slate-500" />
-              Last Polled: {lastChecked.toLocaleTimeString()}
+              Polled: {lastChecked.toLocaleTimeString()}
             </span>
             <span>•</span>
-            <span>OS Uptime: {data.system?.system?.uptimeFormatted || "-"}</span>
+            <span className="text-emerald-400 font-bold">
+              App Uptime: {processInfo.uptimeFormatted || "-"}
+            </span>
             <span>•</span>
-            <span>Process Uptime: {processInfo.uptimeFormatted || "-"}</span>
+            <span>Host Uptime: {hostSystem.uptimeFormatted || "-"}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded-md border border-cyan-400/20">
-              Node {processInfo.nodeVersion} (PID: {processInfo.pid})
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-mono text-cyan-400 bg-cyan-400/10 px-2.5 py-0.5 rounded-md border border-cyan-400/20">
+              PID: {processInfo.pid} • Node {processInfo.nodeVersion} ({processInfo.platform || "linux"})
+            </span>
+            <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
+              {processInfo.activeHandles || 0} Handles / {processInfo.activeRequests || 0} Req
             </span>
           </div>
         </div>
@@ -240,7 +425,7 @@ export default function SystemMonitoringTab({ user = null }) {
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-white/10">
         {[
           { id: "overview", label: "Overview", icon: Layers },
-          { id: "system", label: "System & Process", icon: Cpu },
+          { id: "system", label: "Process & System Breakdown", icon: Cpu },
           { id: "performance", label: "API Performance", icon: Zap },
           { id: "logs", label: "Log Explorer", icon: FileText, count: logTotalCount || data.disk?.filesystem?.totalFiles },
           { id: "alerts", label: "Alert Center", icon: AlertTriangle, count: alertsList.length, countColor: alertsList.length > 0 ? "bg-rose-500/20 text-rose-400" : "" },
@@ -277,229 +462,413 @@ export default function SystemMonitoringTab({ user = null }) {
       {/* ════════════ TAB 1: OVERVIEW ════════════ */}
       {activeSubTab === "overview" && (
         <div className="space-y-6">
-          {/* 4 Stat Overview Cards */}
+          {/* Section Header: Application Process-Level Metrics */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Box className="h-4 w-4 text-cyan-400" />
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-300">
+                Application Resource Consumption (Node.js Process)
+              </h3>
+            </div>
+            <span className="text-[11px] text-cyan-400 font-mono">
+              process.cpuUsage() • process.memoryUsage() • perf_hooks
+            </span>
+          </div>
+
+          {/* 4 Primary Application KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* CPU Metric */}
+            {/* 1. Node.js Application CPU */}
             <div className={`p-5 rounded-2xl border ${cardBg} space-y-3 relative overflow-hidden`}>
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">CPU Utilization</span>
+                <div>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Application CPU</span>
+                  <span className="text-[10px] text-slate-500">Node Process Usage</span>
+                </div>
                 <div className={`p-2 rounded-xl border ${
-                  String(cpu.status).toLowerCase() === "critical" ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
-                  String(cpu.status).toLowerCase() === "warning" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
-                  String(cpu.status).toLowerCase() === "unavailable" ? "bg-slate-500/10 text-slate-400 border-slate-500/20" :
+                  String(appCpu.status).toLowerCase() === "critical" ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
+                  String(appCpu.status).toLowerCase() === "warning" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
                   "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
                 }`}>
                   <Cpu className="h-4 w-4" />
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <p className="text-2xl font-black text-white">
-                  {String(cpu.status).toLowerCase() === "unavailable" ? "Unavailable" : `${cpu.usagePercentage}%`}
+                <p className="text-2xl font-black text-white font-mono">
+                  {appCpu.percent !== undefined ? `${appCpu.percent}%` : "0%"}
                 </p>
                 <span className={`text-[11px] font-bold uppercase ${
-                  String(cpu.status).toLowerCase() === "critical" ? "text-rose-400" :
-                  String(cpu.status).toLowerCase() === "warning" ? "text-amber-400" :
-                  String(cpu.status).toLowerCase() === "unavailable" ? "text-slate-400" : "text-emerald-400"
-                }`}>{cpu.status}</span>
+                  String(appCpu.status).toLowerCase() === "critical" ? "text-rose-400" :
+                  String(appCpu.status).toLowerCase() === "warning" ? "text-amber-400" : "text-emerald-400"
+                }`}>{appCpu.status || "HEALTHY"}</span>
               </div>
               <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    String(cpu.status).toLowerCase() === "critical" ? "bg-rose-500" :
-                    String(cpu.status).toLowerCase() === "warning" ? "bg-amber-400" :
-                    String(cpu.status).toLowerCase() === "unavailable" ? "bg-slate-600" : "bg-cyan-400"
-                  }`}
-                  style={{ width: `${Math.min(100, Math.max(5, cpu.usagePercentage || 5))}%` }}
+                  className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(100, Math.max(3, appCpu.coresNormalizedPercent || appCpu.percent || 3))}%` }}
                 />
               </div>
+              <p className="text-[10px] text-slate-500 font-mono">
+                {appCpu.cores > 1 ? `Normalized: ${appCpu.coresNormalizedPercent}% across ${appCpu.cores} cores` : "1 Core Available"}
+              </p>
             </div>
 
-            {/* RAM Metric */}
+            {/* 2. Application Memory (RSS & Heap) */}
             <div className={`p-5 rounded-2xl border ${cardBg} space-y-3 relative overflow-hidden`}>
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">RAM Allocation</span>
+                <div>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Application RAM</span>
+                  <span className="text-[10px] text-slate-500">Resident Set Size (RSS)</span>
+                </div>
                 <div className={`p-2 rounded-xl border ${
-                  String(memory.status).toLowerCase() === "critical" ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
-                  String(memory.status).toLowerCase() === "warning" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                  String(appMem.status).toLowerCase() === "critical" ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
                   "bg-amber-500/10 text-amber-400 border-amber-500/20"
                 }`}>
                   <Server className="h-4 w-4" />
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <p className="text-2xl font-black text-white">
-                  {String(memory.status).toLowerCase() === "unavailable" ? "Unavailable" : `${memory.usagePercentage}%`}
+                <p className="text-2xl font-black text-white font-mono">
+                  {appMem.rss} <span className="text-sm font-bold text-slate-400">MB</span>
                 </p>
-                <span className="text-[11px] font-bold text-slate-400">
-                  {String(memory.status).toLowerCase() === "unavailable" ? "N/A" : `${memory.usedGB} / ${memory.totalGB}`}
+                <span className="text-[11px] font-bold text-amber-400 font-mono">
+                  Heap: {appMem.heapUsed} MB
                 </span>
               </div>
               <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-amber-400 to-orange-400 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, Math.max(5, memory.usagePercentage || 5))}%` }}
+                  style={{ width: `${Math.min(100, Math.max(5, appMem.heapUsagePercentage || 5))}%` }}
                 />
               </div>
+              <p className="text-[10px] text-slate-500 font-mono">
+                Heap Total: {appMem.heapTotal} MB ({appMem.heapUsagePercentage}% used)
+              </p>
             </div>
 
-            {/* API Health & Latency */}
+            {/* 3. Event Loop Delay (Lag) */}
             <div className={`p-5 rounded-2xl border ${cardBg} space-y-3 relative overflow-hidden`}>
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Avg API Latency</span>
+                <div>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Event Loop Delay</span>
+                  <span className="text-[10px] text-slate-500">I/O Loop Responsiveness</span>
+                </div>
+                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                  <Gauge className="h-4 w-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <p className="text-2xl font-black text-purple-400 font-mono">
+                  {eventLoop.mean} <span className="text-sm font-bold text-slate-400">ms</span>
+                </p>
+                <span className="text-[11px] font-bold text-purple-300 font-mono">
+                  P95: {eventLoop.p95} ms
+                </span>
+              </div>
+              <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    eventLoop.p95 >= 100 ? "bg-rose-500" : eventLoop.p95 >= 35 ? "bg-amber-400" : "bg-purple-400"
+                  }`}
+                  style={{ width: `${Math.min(100, Math.max(5, eventLoop.p95 * 5 || 5))}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 font-mono">
+                Min: {eventLoop.min} ms / Max: {eventLoop.max} ms
+              </p>
+            </div>
+
+            {/* 4. API Latency & Health */}
+            <div className={`p-5 rounded-2xl border ${cardBg} space-y-3 relative overflow-hidden`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Avg API Latency</span>
+                  <span className="text-[10px] text-slate-500">Express HTTP Traffic</span>
+                </div>
                 <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   <Zap className="h-4 w-4" />
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <p className="text-2xl font-black text-emerald-400">{perf.avgResponseTimeMs} ms</p>
+                <p className="text-2xl font-black text-emerald-400 font-mono">{perf.avgResponseTimeMs} ms</p>
                 <span className="text-[11px] font-bold text-emerald-400">{perf.overallSuccessRate} Success</span>
               </div>
               <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                 <div className="h-full bg-emerald-400 rounded-full w-full" />
               </div>
+              <p className="text-[10px] text-slate-500 font-mono">
+                {perf.totalRequests || 0} Total Requests Logged
+              </p>
+            </div>
+          </div>
+
+          {/* ════════════ REAL-TIME TELEMETRY CHARTS (4-GRID) ════════════ */}
+          <div className={`p-6 rounded-3xl border shadow-xl ${cardBg} space-y-4`}>
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-amber-400" />
+                <h3 className="font-extrabold text-sm text-white">
+                  Real-Time Application Telemetry Trends
+                </h3>
+              </div>
+              <span className="text-[11px] text-slate-400">
+                Rolling History: <b className="text-amber-400">{telemetryHistory.length}</b> / 40 samples ({pollInterval / 1000}s rate)
+              </span>
             </div>
 
-            {/* MySQL Status */}
-            <div className={`p-5 rounded-2xl border ${cardBg} space-y-3 relative overflow-hidden`}>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">MySQL Health</span>
-                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                  <Database className="h-4 w-4" />
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Chart 1: Application CPU */}
+              <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-2">
+                <TelemetrySparkChart
+                  data={telemetryHistory}
+                  dataKey="cpu"
+                  color="#38bdf8"
+                  gradientId="cpuGrad"
+                  label="Application CPU (%)"
+                  unit="%"
+                  height={80}
+                  minY={0}
+                  isDark={isDark}
+                />
               </div>
-              <div className="flex items-baseline justify-between">
-                <p className="text-2xl font-black text-white">
-                  {data.health?.services?.database === "up" ? "Connected" : "Disconnected"}
-                </p>
-                <span className="text-[11px] font-bold text-purple-400">
-                  {data.health?.details?.database?.responseTimeMs || 0}ms Ping
-                </span>
+
+              {/* Chart 2: Memory RSS (MB) */}
+              <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-2">
+                <TelemetrySparkChart
+                  data={telemetryHistory}
+                  dataKey="rss"
+                  color="#fbbf24"
+                  gradientId="rssGrad"
+                  label="Application RSS RAM (MB)"
+                  unit="MB"
+                  height={80}
+                  isDark={isDark}
+                />
               </div>
-              <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-purple-400 to-pink-500 rounded-full w-full" />
+
+              {/* Chart 3: V8 Heap Used (MB) */}
+              <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-2">
+                <TelemetrySparkChart
+                  data={telemetryHistory}
+                  dataKey="heapUsed"
+                  color="#c084fc"
+                  gradientId="heapGrad"
+                  label="V8 JavaScript Heap (MB)"
+                  unit="MB"
+                  height={80}
+                  isDark={isDark}
+                />
+              </div>
+
+              {/* Chart 4: Event Loop Lag (ms) */}
+              <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-2">
+                <TelemetrySparkChart
+                  data={telemetryHistory}
+                  dataKey="eventLoopMean"
+                  color="#34d399"
+                  gradientId="evLoopGrad"
+                  label="Event Loop Delay Mean (ms)"
+                  unit="ms"
+                  height={80}
+                  minY={0}
+                  isDark={isDark}
+                />
               </div>
             </div>
           </div>
 
-          {/* Quick Subsystems Status Matrix */}
-          <div className={`rounded-3xl border shadow-2xl overflow-hidden ${cardBg}`}>
-            <div className={`p-5 border-b flex items-center justify-between ${isDark ? "border-white/10" : "border-slate-200"}`}>
-              <div className="flex items-center gap-2.5">
-                <Layers className="h-4 w-4 text-amber-400" />
-                <h3 className="font-extrabold text-sm text-white">Core Observability Subsystems</h3>
+          {/* ════════════ HOST / CONTAINER METRICS (CLEARLY SEPARATED) ════════════ */}
+          <div className={`p-6 rounded-3xl border shadow-xl ${cardBg} space-y-4`}>
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Server className="h-4 w-4 text-slate-400" />
+                <h3 className="font-black text-xs uppercase tracking-wider text-slate-400">
+                  Host / Container Environment Metrics
+                </h3>
               </div>
-              <span className="text-xs text-emerald-400 font-bold">Winston &amp; Morgan Integrated</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                Render Cloud Container Host (Separate from App Metrics)
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-white/10">
-              <div className="p-5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-white flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-cyan-400" /> API Gateway
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    HTTP UP
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400">Total Requests: {perf.totalRequests || 0}</p>
-                <p className="text-xs text-slate-400">Avg Response: {perf.avgResponseTimeMs || 0}ms</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Host CPU */}
+              <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Host Server CPU</span>
+                <p className="text-xl font-black text-white font-mono">{hostCpu.usagePercentage}%</p>
+                <p className="text-[10px] text-slate-400 truncate">{hostCpu.model || "Virtual CPU"} ({hostCpu.cores} Cores)</p>
               </div>
 
-              <div className="p-5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-white flex items-center gap-2">
-                    <Database className="h-4 w-4 text-purple-400" /> MySQL Sequelize
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                    data.health?.services?.database === "up"
-                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                      : "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                  }`}>
-                    {data.health?.services?.database === "up" ? "ACTIVE" : "DOWN"}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400">Dialect: {data.health?.details?.database?.dialect || "MySQL"}</p>
-                <p className="text-xs text-slate-400">Response: {data.health?.details?.database?.responseTimeMs || 0}ms</p>
+              {/* Host RAM */}
+              <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Host Container RAM</span>
+                <p className="text-xl font-black text-white font-mono">{hostMem.usedGB} / {hostMem.totalGB}</p>
+                <p className="text-[10px] text-slate-400 font-mono">Free: {hostMem.freeGB} ({hostMem.usagePercentage}% used)</p>
               </div>
 
-              <div className="p-5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-white flex items-center gap-2">
-                    <HardDrive className="h-4 w-4 text-amber-400" /> Log Filesystem
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    R/W OK
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400">Total Files: {data.disk?.filesystem?.totalFiles || 0}</p>
-                <p className="text-xs text-slate-400">Log Storage: {data.disk?.filesystem?.totalStorageFormatted || "0 B"}</p>
+              {/* Host Load Average */}
+              <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Host Load Average</span>
+                <p className="text-xl font-black text-cyan-400 font-mono">
+                  {hostLoad.map((l) => (typeof l === "number" ? l.toFixed(2) : l)).join(" • ")}
+                </p>
+                <p className="text-[10px] text-slate-400">1m • 5m • 15m intervals</p>
+              </div>
+
+              {/* Host OS */}
+              <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Container Host OS</span>
+                <p className="text-sm font-extrabold text-white truncate">{hostSystem.platform} ({hostSystem.architecture})</p>
+                <p className="text-[10px] text-slate-400 font-mono truncate">{hostSystem.hostname}</p>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ════════════ TAB 2: SYSTEM & PROCESS ════════════ */}
+      {/* ════════════ TAB 2: SYSTEM & PROCESS BREAKDOWN ════════════ */}
       {activeSubTab === "system" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* OS Metrics Card */}
-          <div className={`p-6 rounded-3xl border shadow-xl ${cardBg} space-y-4`}>
-            <div className="flex items-center gap-2 pb-3 border-b border-white/10">
-              <Cpu className="h-5 w-5 text-amber-400" />
-              <h3 className="font-black text-sm text-white">Host Operating System</h3>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 1. Deep Node.js Application Process Telemetry */}
+            <div className={`p-6 rounded-3xl border shadow-xl ${cardBg} space-y-4`}>
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <Terminal className="h-5 w-5 text-cyan-400" />
+                  <h3 className="font-black text-sm text-white">Node.js Application Diagnostics</h3>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-mono">
+                  PID {processInfo.pid}
+                </span>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Application CPU (process.cpuUsage)</span>
+                  <span className="font-bold text-cyan-400 font-mono">{appCpu.percent}%</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">RSS Memory (Total Process in RAM)</span>
+                  <span className="font-bold text-white font-mono">{appMem.rssFormatted} ({appMem.rss} MB)</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">V8 Heap Used / Total</span>
+                  <span className="font-bold text-amber-400 font-mono">{appMem.heapUsedFormatted} / {appMem.heapTotalFormatted} ({appMem.heapUsagePercentage}%)</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">External Memory (C++ Buffers)</span>
+                  <span className="font-bold text-slate-300 font-mono">{appMem.externalFormatted}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">ArrayBuffer Memory</span>
+                  <span className="font-bold text-slate-300 font-mono">{appMem.arrayBuffersFormatted}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Node Engine &amp; Platform</span>
+                  <span className="font-bold text-white font-mono">{processInfo.nodeVersion} on {processInfo.platform} ({processInfo.architecture})</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Process Uptime</span>
+                  <span className="font-bold text-emerald-400 font-mono">{processInfo.uptimeFormatted}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Active Handles &amp; Requests</span>
+                  <span className="font-bold text-slate-300 font-mono">{processInfo.activeHandles || 0} Handles / {processInfo.activeRequests || 0} Requests</span>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between py-2 border-b border-white/5">
-                <span className="text-slate-400">Platform &amp; Arch</span>
-                <span className="font-bold text-white font-mono">{data.system?.system?.platform} ({data.system?.system?.architecture})</span>
+            {/* 2. Event Loop Performance & Percentiles */}
+            <div className={`p-6 rounded-3xl border shadow-xl ${cardBg} space-y-4`}>
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <Gauge className="h-5 w-5 text-purple-400" />
+                  <h3 className="font-black text-sm text-white">Event Loop Delay Telemetry (perf_hooks)</h3>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  {eventLoop.status || "HEALTHY"}
+                </span>
               </div>
-              <div className="flex justify-between py-2 border-b border-white/5">
-                <span className="text-slate-400">Hostname</span>
-                <span className="font-bold text-white font-mono">{data.system?.system?.hostname}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-white/5">
-                <span className="text-slate-400">CPU Model</span>
-                <span className="font-bold text-white truncate max-w-[200px] sm:max-w-xs">{cpu.model}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-white/5">
-                <span className="text-slate-400">CPU Cores &amp; Speed</span>
-                <span className="font-bold text-white">{cpu.cores} Cores @ {cpu.speed}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-white/5">
-                <span className="text-slate-400">OS Host Uptime</span>
-                <span className="font-bold text-amber-400 font-mono">{data.system?.system?.uptimeFormatted}</span>
+
+              <div className="space-y-3 text-xs">
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Mean Loop Lag</span>
+                  <span className="font-bold text-purple-400 font-mono">{eventLoop.mean} ms</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Min Loop Lag</span>
+                  <span className="font-bold text-slate-300 font-mono">{eventLoop.min} ms</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Max Loop Lag</span>
+                  <span className="font-bold text-slate-300 font-mono">{eventLoop.max} ms</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">95th Percentile (P95)</span>
+                  <span className={`font-bold font-mono ${eventLoop.p95 >= 100 ? "text-rose-400" : eventLoop.p95 >= 35 ? "text-amber-400" : "text-emerald-400"}`}>
+                    {eventLoop.p95} ms
+                  </span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">99th Percentile (P99)</span>
+                  <span className="font-bold text-slate-200 font-mono">{eventLoop.p99} ms</span>
+                </div>
+                <div className="p-3 rounded-xl bg-black/30 border border-white/5 text-[11px] text-slate-400 space-y-1">
+                  <p className="font-bold text-slate-300 flex items-center gap-1">
+                    <Info className="h-3.5 w-3.5 text-cyan-400" />
+                    How Event Loop Lag Works:
+                  </p>
+                  <p>
+                    <code className="text-cyan-300 font-mono">monitorEventLoopDelay</code> measures the delay in scheduling timers within the V8 event loop. Values under 20ms indicate excellent asynchronous responsiveness.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Node Process Metrics Card */}
+          {/* 3. Host / Container Hardware Specs */}
           <div className={`p-6 rounded-3xl border shadow-xl ${cardBg} space-y-4`}>
             <div className="flex items-center gap-2 pb-3 border-b border-white/10">
-              <Terminal className="h-5 w-5 text-cyan-400" />
-              <h3 className="font-black text-sm text-white">Node.js Process Telemetry</h3>
+              <Cpu className="h-5 w-5 text-amber-400" />
+              <h3 className="font-black text-sm text-white">Host Machine &amp; Container Specs</h3>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between py-2 border-b border-white/5">
-                <span className="text-slate-400">Process PID</span>
-                <span className="font-bold text-cyan-400 font-mono">{processInfo.pid}</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div className="space-y-3">
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Host Platform &amp; Arch</span>
+                  <span className="font-bold text-white font-mono">{hostSystem.platform} ({hostSystem.architecture})</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Host Container Name</span>
+                  <span className="font-bold text-white font-mono">{hostSystem.hostname}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Host CPU Model</span>
+                  <span className="font-bold text-white truncate max-w-[200px]">{hostCpu.model}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Host CPU Cores</span>
+                  <span className="font-bold text-white">{hostCpu.cores} Virtual Cores</span>
+                </div>
               </div>
-              <div className="flex justify-between py-2 border-b border-white/5">
-                <span className="text-slate-400">Node Engine Version</span>
-                <span className="font-bold text-white font-mono">{processInfo.nodeVersion}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-white/5">
-                <span className="text-slate-400">Node Process Uptime</span>
-                <span className="font-bold text-emerald-400 font-mono">{processInfo.uptimeFormatted}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-white/5">
-                <span className="text-slate-400">V8 Heap Allocation</span>
-                <span className="font-bold text-white font-mono">{processMem.heapUsed} / {processMem.heapTotal}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-white/5">
-                <span className="text-slate-400">Resident Set Size (RSS)</span>
-                <span className="font-bold text-white font-mono">{processMem.rss}</span>
+
+              <div className="space-y-3">
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Host Total RAM</span>
+                  <span className="font-bold text-white font-mono">{hostMem.totalGB}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Host Free RAM</span>
+                  <span className="font-bold text-emerald-400 font-mono">{hostMem.freeGB}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Host Load Average (1m, 5m, 15m)</span>
+                  <span className="font-bold text-cyan-400 font-mono">{hostLoad.join(", ")}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-white/5">
+                  <span className="text-slate-400">Host OS Uptime</span>
+                  <span className="font-bold text-amber-400 font-mono">{hostSystem.uptimeFormatted}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -512,15 +881,15 @@ export default function SystemMonitoringTab({ user = null }) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className={`p-5 rounded-2xl border ${cardBg} space-y-2`}>
               <span className="text-[11px] font-bold text-slate-400 uppercase">Total Requests Recorded</span>
-              <p className="text-2xl font-black text-white">{perf.totalRequests || 0}</p>
+              <p className="text-2xl font-black text-white font-mono">{perf.totalRequests || 0}</p>
             </div>
             <div className={`p-5 rounded-2xl border ${cardBg} space-y-2`}>
               <span className="text-[11px] font-bold text-slate-400 uppercase">Average Latency</span>
-              <p className="text-2xl font-black text-emerald-400">{perf.avgResponseTimeMs || 0} ms</p>
+              <p className="text-2xl font-black text-emerald-400 font-mono">{perf.avgResponseTimeMs || 0} ms</p>
             </div>
             <div className={`p-5 rounded-2xl border ${cardBg} space-y-2`}>
               <span className="text-[11px] font-bold text-slate-400 uppercase">Min / Max Latency</span>
-              <p className="text-2xl font-black text-cyan-400">{perf.minResponseTimeMs || 0} / {perf.maxResponseTimeMs || 0} ms</p>
+              <p className="text-2xl font-black text-cyan-400 font-mono">{perf.minResponseTimeMs || 0} / {perf.maxResponseTimeMs || 0} ms</p>
             </div>
           </div>
 
@@ -559,7 +928,7 @@ export default function SystemMonitoringTab({ user = null }) {
                             }`}>{ep.method}</span>
                             {ep.endpoint}
                           </td>
-                          <td className="py-3 px-5 text-white font-bold">{ep.requests}</td>
+                          <td className="py-3 px-5 text-white font-bold font-mono">{ep.requests}</td>
                           <td className={`py-3 px-5 font-mono font-bold ${
                             avgMs >= 1000 ? "text-rose-400" :
                             avgMs >= 500 ? "text-amber-400" : "text-emerald-400"
@@ -768,15 +1137,15 @@ export default function SystemMonitoringTab({ user = null }) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className={`p-5 rounded-2xl border border-rose-500/30 ${cardBg} space-y-2`}>
               <span className="text-[11px] font-bold text-rose-400 uppercase">Critical Incidents</span>
-              <p className="text-2xl font-black text-rose-400">{data.alerts?.summary?.critical || 0}</p>
+              <p className="text-2xl font-black text-rose-400 font-mono">{data.alerts?.summary?.critical || 0}</p>
             </div>
             <div className={`p-5 rounded-2xl border border-amber-500/30 ${cardBg} space-y-2`}>
               <span className="text-[11px] font-bold text-amber-400 uppercase">Warnings</span>
-              <p className="text-2xl font-black text-amber-400">{data.alerts?.summary?.warning || 0}</p>
+              <p className="text-2xl font-black text-amber-400 font-mono">{data.alerts?.summary?.warning || 0}</p>
             </div>
             <div className={`p-5 rounded-2xl border ${cardBg} space-y-2`}>
               <span className="text-[11px] font-bold text-slate-400 uppercase">Total Logged Alerts</span>
-              <p className="text-2xl font-black text-white">{data.alerts?.summary?.total || 0}</p>
+              <p className="text-2xl font-black text-white font-mono">{data.alerts?.summary?.total || 0}</p>
             </div>
           </div>
 
@@ -833,7 +1202,7 @@ export default function SystemMonitoringTab({ user = null }) {
                 <span className="text-[11px] font-bold text-slate-400 uppercase">Interview Pipeline</span>
                 <Users className="h-4 w-4 text-cyan-400" />
               </div>
-              <p className="text-2xl font-black text-white">{business.interviews?.total || 0}</p>
+              <p className="text-2xl font-black text-white font-mono">{business.interviews?.total || 0}</p>
               <div className="text-[11px] text-slate-400 flex justify-between">
                 <span>Pending: {business.interviews?.pending || 0}</span>
                 <span className="text-emerald-400">Completed: {business.interviews?.completed || 0}</span>
@@ -846,7 +1215,7 @@ export default function SystemMonitoringTab({ user = null }) {
                 <span className="text-[11px] font-bold text-slate-400 uppercase">Google Meet Links</span>
                 <Video className="h-4 w-4 text-purple-400" />
               </div>
-              <p className="text-2xl font-black text-white">{business.meetingLinks?.total || 0}</p>
+              <p className="text-2xl font-black text-white font-mono">{business.meetingLinks?.total || 0}</p>
               <div className="text-[11px] text-slate-400 flex justify-between">
                 <span>Available: {business.meetingLinks?.available || 0}</span>
                 <span className="text-purple-400">Assigned: {business.meetingLinks?.assigned || 0}</span>
@@ -859,7 +1228,7 @@ export default function SystemMonitoringTab({ user = null }) {
                 <span className="text-[11px] font-bold text-slate-400 uppercase">Active Jobs</span>
                 <Briefcase className="h-4 w-4 text-amber-400" />
               </div>
-              <p className="text-2xl font-black text-white">{business.matchingAndHiring?.totalJobs || 0}</p>
+              <p className="text-2xl font-black text-white font-mono">{business.matchingAndHiring?.totalJobs || 0}</p>
               <div className="text-[11px] text-slate-400 flex justify-between">
                 <span>Candidates: {business.matchingAndHiring?.totalCandidates || 0}</span>
                 <span className="text-amber-400">Applications: {business.matchingAndHiring?.totalApplications || 0}</span>
@@ -872,7 +1241,7 @@ export default function SystemMonitoringTab({ user = null }) {
                 <span className="text-[11px] font-bold text-slate-400 uppercase">Company Outreach</span>
                 <Send className="h-4 w-4 text-emerald-400" />
               </div>
-              <p className="text-2xl font-black text-white">{business.companyOutreach?.totalInvitations || 0}</p>
+              <p className="text-2xl font-black text-white font-mono">{business.companyOutreach?.totalInvitations || 0}</p>
               <div className="text-[11px] text-slate-400 flex justify-between">
                 <span>Acceptance Rate:</span>
                 <span className="text-emerald-400 font-bold">{business.companyOutreach?.acceptanceRate || "0%"}</span>
