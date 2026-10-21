@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   ShieldCheck, Building2, CheckCircle2, XCircle, Trash2,
@@ -50,6 +50,7 @@ export default function SuperAdminDashboard() {
   const [sessionsList, setSessionsList] = useState([]);
   const [questionsCount, setQuestionsCount] = useState(0);
   const [monitoringData, setMonitoringData] = useState(null);
+  const monitoringSupportedRef = useRef(true);
 
   const [loading, setLoading]           = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
@@ -90,7 +91,10 @@ export default function SuperAdminDashboard() {
   }, [router]);
 
   const fetchAllData = async (silent = false) => {
-    if (!silent) setLoading(true);
+    if (!silent) {
+      setLoading(true);
+      monitoringSupportedRef.current = true;
+    }
     try {
       const [resUsers, resCompanies, bugRes, sessionRes, questionRes, monRes] = await Promise.all([
         api.get("/super-admin/users").catch((err) => ({ data: { success: false, data: [] } })),
@@ -98,7 +102,14 @@ export default function SuperAdminDashboard() {
         api.get("/bugs/all").catch((err) => ({ data: { success: false, data: [] } })),
         api.get("/sessions/all").catch(() => ({ data: {} })),
         api.get("/questions/count").catch(() => api.get("/api/questions/count")).catch(() => ({ data: {} })),
-        api.get("/monitoring/dashboard").catch(() => ({ data: {} })),
+        monitoringSupportedRef.current
+          ? api.get("/monitoring/dashboard").catch((err) => {
+              if (err?.response?.status === 404) {
+                monitoringSupportedRef.current = false;
+              }
+              return { data: {} };
+            })
+          : Promise.resolve({ data: {} }),
       ]);
 
       const jsonUsers = resUsers.data;
