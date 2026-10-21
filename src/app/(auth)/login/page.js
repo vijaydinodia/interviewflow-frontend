@@ -82,10 +82,9 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const response = await axios.post(`${api}/user/login`, {
-        email: cleanIdentifier,
-        password: cleanPassword,
-      });
+      const response = api.post
+        ? await api.post("/user/login", { email: cleanIdentifier, password: cleanPassword })
+        : await axios.post(`${api}/user/login`, { email: cleanIdentifier, password: cleanPassword });
 
       const data = response.data;
 
