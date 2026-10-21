@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import axios from "axios";
 import { Lock, Mail, Eye, EyeOff, AlertCircle, Home, LayoutDashboard, Sparkles, ArrowRight, User } from "lucide-react";
 import AuthLayout from "../_components/AuthLayout";
 import GuestRoute from "@/components/GuestRoute/page";
@@ -81,7 +82,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const response = await api.post("/user/login", {
+      const response = await axios.post(`${api}/user/login`, {
         email: cleanIdentifier,
         password: cleanPassword,
       });
